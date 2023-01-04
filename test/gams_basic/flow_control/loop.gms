@@ -1,0 +1,1 @@
+loop(t, pop(t+1) = pop(t) + growth(t); ) ;
