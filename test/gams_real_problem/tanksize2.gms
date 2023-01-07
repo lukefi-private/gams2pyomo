@@ -1,16 +1,16 @@
 $ONTEXT
 
-Tank sizing problem based on the three product example in 
+Tank sizing problem based on the three product example in
 Rebennack et al., Computers and Chemical Engineering, 2011
 This model contains three uncertain product demands.
-Number of binary complicating variables: 
-Number of continuous complicating variables: 
+Number of binary complicating variables:
+Number of continuous complicating variables:
 Number of binary recourse variables: 0
 Number of continuous recourse variables: *s
 Number of bilinear terms: *s
-Number of univariate signomial terms: 
-Number of complicating constraints: 
-Number of recourse constraints: 
+Number of univariate signomial terms:
+Number of complicating constraints:
+Number of recourse constraints:
 
 This file is based on tanksize.350 in the gamslib_ml folder of the GAMS
 distribution
@@ -18,7 +18,7 @@ compared to Barton's formulation
 1. We changed some of the variable bounds
 2. reformulate the ProductionUpperBound ProductionLowerBound with Glover inequalites
 3. change the storage cost CampaignStorageCost
-4. put CampaignInvestmentCost in the objective 
+4. put CampaignInvestmentCost in the objective
 $OFFTEXT
 
 *-------------------------------------------
@@ -48,8 +48,8 @@ OPTION MINLP=SCIP;
 SETS
 	p		"products"									/ 1*3 /
 	n		"event points"								/ 1*3 /
-	h		"number of scenarios"						/ 1*2 /	
-	subh	"num. realizations per uncertain param"		/ 1*2 /	
+	h		"number of scenarios"						/ 1*2 /
+	subh	"num. realizations per uncertain param"		/ 1*2 /
 ;
 *** NOTE: Use h = subh or subh^2 or subh^3
 
@@ -272,7 +272,7 @@ EQUATIONS
 	ProductionUpperBound1(p,n,h)		"upper bound for product"
 	ProductionLowerBound1(p,n,h)		"lower bound for product"
 	ProductionUpperBound2(p,n,h)		"upper bound for product"
-	ProductionLowerBound2(p,n,h)		"lower bound for product"	
+	ProductionLowerBound2(p,n,h)		"lower bound for product"
 	CampanLengthDef(n,h)                "Definition of campaign length"
 	CampaignUpperBound(n,h)			"upper bound on duration"
 	CampaignLowerBound(n,h)			"lower bound on duration"
@@ -293,14 +293,14 @@ objective .. objvar =e= sum(h,prob(h)*costPerTon(h))+ VariableInvestmentCostFact
 ;
 
 *** time balance constraint with unknown cycle time T
-TimeCapacity(h) .. cycleTime(h) =e= sum(n, campaignDuration(n,h) + sum (p, CampaignSetupTime(p)*assignProductToCampaign(p,n,h))) 
+TimeCapacity(h) .. cycleTime(h) =e= sum(n, campaignDuration(n,h) + sum (p, CampaignSetupTime(p)*assignProductToCampaign(p,n,h)))
 ;
 
 UniqueProduct(n,h) .. sum(p, assignProductToCampaign(p,n,h)) =l= 1
 ;
 
-MaterialBalance(p,n,h) .. productInventory(p,n++1,h) =e= productInventory(p,n,h) + amtProductInCampaign(p,n,h) - 
-															DemandPerDay(p,h)*(campaignDuration(n,h) + 
+MaterialBalance(p,n,h) .. productInventory(p,n++1,h) =e= productInventory(p,n,h) + amtProductInCampaign(p,n,h) -
+															DemandPerDay(p,h)*(campaignDuration(n,h) +
 																				sum (pp, CampaignSetupTime(pp)*assignProductToCampaign(pp,n,h)))
 ;
 
