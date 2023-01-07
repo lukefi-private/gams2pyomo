@@ -1,19 +1,61 @@
 start: statement+
 
-?statement: [macro_conditional] (symbol_definition 
-			| macro
-			| execute
-			| display
-			| assignment_definition 
-			| equation_definition 
-			| model_definition 
-			| solve_definition )
+?statement: [macro_conditional] (symbol_definition
+								| macro
+								| execute
+								| display
+								| assignment
+								| eq_definition
+								| model_definition
+								| solve_statement
+								| option_setting
+								| if_statement
+								| loop_statement
+								| abort_statement )
 
 
-// Macros
-macro_conditional: "$if" negate? macro_condition
-macro_condition: "set" string -> env_test
+// ================================ statements =================================
+
+// ------------------------------------ $if ------------------------------------
+// conditional compilation
+// https://www.gams.com/latest/docs/UG_DollarControlOptions.html#DOLLARif
+
+macro_conditional: _DOLLARIF negate? macro_condition
+macro_condition: _M_SET string -> env_test
 				| expression
+
+
+// ----------------------------- symbol definition -----------------------------
+
+symbol_definition: _SET 		definition+ 			_END -> set_list
+				| _PARAMETER 	definition+ 			_END -> parameter_list
+				| _SCALAR 		definition+ 			_END -> scalar_list
+				| _VARIABLE 	definition+ 			_END -> variable_list
+				| _PVARIABLE 	definition+ 			_END -> p_variable_list
+				| _BVARIABLE 	definition+ 			_END -> b_variable_list
+				| _EQUATION 	definition+ 			_END -> equation_list
+				| _TABLE 		table_definition 		_END -> table
+				| _ALIAS 		_LPAR index_list _RPAR 	_END -> alias_list
+
+
+// ------------------------------- if statement --------------------------------
+
+if_statement: _IF _LPAR expression _COMMA statement+ (elseif_statement)* [else_statement] _RPAR _END
+elseif_statement: _ELSEIF expression _COMMA statement+
+else_statement: _ELSE statement+
+
+
+// ----------------------------------- loop ------------------------------------
+
+loop_statement: _LOOP _LPAR index_item [conditional] _COMMA statement+ _RPAR _END
+
+
+// ----------------------------------- abort -----------------------------------
+
+abort_statement: _ABORT [(identifier | description) (_COMMA identifier | description)*] _END
+
+
+// ----------------------------------- macro -----------------------------------
 
 macro: macro_include  _NL
 	| "$" macro_set _NL
@@ -21,20 +63,22 @@ macro: macro_include  _NL
 
 macro_include: "$include" filename
 macro_set: _M_SET WORD WORD
-macro_words: _M_EMPTY	
+macro_words: _M_EMPTY
 			| _M_LISTING
 			| _M_DELIM
+
+
+// ---------------------------------- execute ----------------------------------
 
 execute: execute_unload _END
 
 execute_unload: _EXECUTE_UNLOAD _QUOTE filename _QUOTE symbol+
 
-negate: "not"
 filename: (string | compiler_variable | "/")+ ["." extension]
 quoted_string: /['"]/ string /['"]/
 compiler_variable: "%" string "%"
 extension: string
-			
+
 
 _EXECUTE_UNLOAD: "execute_unload"
 
@@ -44,91 +88,108 @@ _M_DELIM: "ondelim" | "offdelim"
 _M_SET: "set"
 
 
+// ---------------------------------- display ----------------------------------
 
-// display
+display: _DISPLAY symbol_name ([_COMMA] symbol_name )* _END
 
-display: _DISPLAY symbol_name+ _END
-_DISPLAY: "Display" | "display"
 
-// model_definition
+// ----------------------------- model definition ------------------------------
+
 model_definition: _MODEL string "/" symbol_name+ "/" _END
 
-// solve_defintion
-solve_definition: _SOLVE string ( "using" model_types sense symbol_name | sense symbol_name "using" model_types) _END
+
+// ----------------------------- solve definition ------------------------------
+
+solve_statement: _SOLVE string ( "using" model_types sense symbol_name | sense symbol_name "using" model_types) _END
 sense: "minimizing" -> sense_min
 	| "maximizing" 	-> sense_max
 
 
+// -------------------------------- assignment ---------------------------------
 
-// assignment
+assignment: symbol [conditional] "=" expression _END
 
-assignment_definition: symbol [conditional]  "=" expression _END
+// ---------------------------------- option -----------------------------------
 
-?expression: symbol
-			| number
-			| compiler_variable
-			| quoted_string // This is for compiler expressions
-			| operator_indexed "(" (index_list | "(" index_list ")") [conditional] "," expression ")"
-			| expression operator_expression expression 
-			| expression operator_logical expression
-			| expression operator_relation expression
-			| "(" expression ")"
-			| expression conditional
-			| negate expression
+option_setting: _OPTION option_name "=" option_value _END
+?option_name: identifier
+?option_value: WORD | NUMBER
 
-conditional: "$" expression
-number: NUMBER
+// ---------------------------- equation definition ----------------------------
 
-// Equation definition
-
-equation_definition: symbol[conditional] ".." lhs equation_types rhs _END
+eq_definition: symbol[conditional] ".." lhs equation_types rhs _END
 lhs: expression
 rhs: expression
 
-// Symbol Definitions
 
-symbol_definition: _SET 		definition+ 		_END -> set_list
-				| _PARAMETER 	definition+ 		_END -> parameter_list
-				| _SCALAR 		definition+ 		_END -> scalar_list
-				| _VARIABLE 	definition+ 		_END -> variable_list
-				| _EQUATION 	definition+ 		_END -> equation_list
-				| _TABLE 		table_definition 	_END -> table
-				| _ALIAS 		"(" index_list ")" 	_END -> alias_list
+// ============================== basic elements ===============================
 
-// Definitions are seperated by newline or commas, ignore the comma if it exists
-definition: symbol [description] [data] [","]
+// -------------------------------- definition ---------------------------------
+
+// definitions are seperated by newline or commas, ignore the comma if it exists
+definition: symbol [description] [data] [_COMMA]
 table_definition: symbol [description] [table_data]
 
-data			: _SLASH [data_element ((","|_NL) data_element)*] _SLASH
+
+// ----------------------------------- data ------------------------------------
+
+data			: _SLASH [data_element ((_COMMA|_NL) data_element)*] _SLASH
 table_data 		: (symbol_id | value | macro )+
-?data_element	: symbol_id
+?data_element	: value
+				| symbol_id
 				| symbol_range
 				| symbol_id value -> data_value
 				| macro
-value 			: NUMBER
-
+value 			: SIGNED_NUMBER
 description		: FLEX_ESCAPED_STRING
 
-// Symbol
+
+// -------------------------------- expression ---------------------------------
+
+?expression: func_expression
+			| value
+			| symbol[suffix]
+			| compiler_variable
+			| quoted_string // this is for compiler expressions
+			| operator_indexed _LPAR (index_list | _LPAR index_list _RPAR) [conditional] _COMMA expression _RPAR
+			| expression operator_expression expression
+			| expression operator_logical expression
+			| expression operator_relation expression
+			| _LPAR expression _RPAR
+			| expression conditional
+			| negate expression
+
+func_expression: (math_functions | string_functions | time_functions) _LPAR expression _RPAR
+
+negate: "not" | "NOT"
+
+conditional: "$" expression
+
+// ---------------------------------- symbol -----------------------------------
+
 symbol 			: symbol_name[suffix][symbol_index]
-symbol_range    : identifier "*" identifier
-symbol_id 		: identifier 
-				| symbol_id "." identifier
-symbol_element  : _QUOTE identifier _QUOTE
-				| _QUOTE compiler_variable _QUOTE
-?symbol_index	: "(" index_list ")"
-index_list		: index_item ("," index_item )*
-?index_item		: symbol_name 
-				| symbol_element 
+?symbol_index	: _LPAR index_list _RPAR
+index_list		: index_item (_COMMA index_item )*
+?index_item		: symbol_name
+				| symbol_element
 				| compiler_variable
 				| symbol_name "+" NUMBER -> lead
 				| symbol_name "-" NUMBER -> lag
 				| symbol_name "++" NUMBER -> circular_lead
 				| symbol_name "--" NUMBER -> circular_lag
+symbol_range    : identifier "*" identifier
+symbol_id 		: identifier
+				| symbol_id "." identifier
+symbol_element  : _QUOTE identifier _QUOTE
+				| _QUOTE compiler_variable _QUOTE
 symbol_name		: identifier
-?identifier 	: WORD_IDENTIFIER
-sep				: "," | _NL
+// ?identifier 	: WORD_IDENTIFIER|INTEGER
+?identifier 	: WORD_IDENTIFIER | SIGNED_NUMBER
+sep				: _COMMA | _NL
 suffix			:  _SUFFIX
+
+// =================================== misc ====================================
+
 
 _SUFFIX : ".modelstat"
 		| ".maxobj"
@@ -137,24 +198,41 @@ _SUFFIX : ".modelstat"
 		| ".resusd"
 		| ".objest"
 		| ".gap"
-		| ".up"  
-		| ".lo" 
-		| ".l" 
-		| ".m" 
+		| ".up"
+		| ".lo"
+		| ".l"
+		| ".m"
+		| ".fx"
+		| ".etsolve"
+		| ".resusd"
 
-// Keywords
-_SET: "sets" | "Sets" | "Set" | "SET" | "set"
-_PARAMETER: "Parameter" | "PARAMETER" | "parameter"
+
+// --------------------------------- keywords ----------------------------------
+
+_SET: "sets" | "Sets" | "SETS" | "Set" | "SET" | "set"
+_PARAMETER: "Parameter" | "PARAMETER" | "parameter" | "Parameters" | "PARAMETERS" | "parameters"
 _TABLE: "Table" | "table"
-_VARIABLE: "Variables" | "Positive variables"  | "Positive Variables"
-_EQUATION: "Equations" | "equations" 
-_MODEL: "Model" | "model"
-_SOLVE: "Solve" | "solve"
-_SCALAR: "scalar" | "Scalar"
+_VARIABLE: "variable" | "VARIABLE" | "Variable" | "variables" | "VARIABLES" | "Variables"
+_PVARIABLE: "positive variables" | "positive variable" | "POSITIVE VARIABLES" | "POSITIVE VARIABLE" | "Positive variables" | "Positive variable" | "Positive Variables"
+_BVARIABLE: "binary variables" | "binary variable" | "BINARY VARIABLES" | "BINARY VARIABLE" | "binary variables" | "Binary variable"
+_EQUATION: "Equations" | "equations" | "EQUATIONS" | "EQUATIONS"
+_MODEL: "Model" | "model" | "MODEL"
+_SOLVE: "Solve" | "solve" | "SOLVE"
+_SCALAR: "scalar" | "SCALAR" | "scalars" | "SCALARS"
 _ALIAS: ("alias" | "Alias")
+_OPTION: "OPTION" | "option"
+_IF: "if" | "IF"
+_ELSEIF: "elseif" | "ELSEIF"
+_ELSE: "else" | "ELSE"
+_DOLLARIF: "$if" | "$IF"
+_LOOP: "loop" | "LOOP"
+_ABORT: "abort" | "ABORT"
+_DISPLAY: "Display" | "display" | "DISPLAY"
 
-// Punctuation
 
+// -------------------------------- punctuation --------------------------------
+
+_COMMA: ","
 _END: ";"
 _LPAR: "("
 _RPAR: ")"
@@ -164,29 +242,30 @@ _SINGLEQUOTE: "'"
 _DOUBLEQUOTE: "\""
 
 
-// Imports / MISC
+// ---------------------------------- imports ----------------------------------
+
 %import common.WS
 %import common.NUMBER
+%import common.SIGNED_NUMBER
+%import common.SIGNED_FLOAT
 %import common.NEWLINE -> _NL
 
-
-string: WORD 
-
+// INTEGER 		: /[0-9]+/
 NAME           	: /[^\W\d][\w]*/
-
-// This allows some more characters that can be used in a symbol name
+string			: WORD
+// this allows some more characters that can be used in a symbol name
 WORD_IDENTIFIER : /[a-zA-Z][\w-]*/
 WORD			: /[\w-]+/
 FLEX_ESCAPED_STRING : /['"].*?(?<!\\)['"]/
 
-// Ignores/Comments
+// ignores/comments
 COMMENT : /\*[^\n]+/
-COMMENT_BLOCK: "$ontext" /(\S|\s)*?/ "$offtext"
+COMMENT_BLOCK: ("$ontext" | "$ONTEXT") /(\S|\s)*?/ ("$offtext" | "$OFFTEXT")
 %ignore COMMENT_BLOCK
 %ignore WS
 %ignore COMMENT
 
-// Model Types
+// model types
 model_types: "LP" | "lp" 			-> 	model_lp
 			| "NLP" | "nlp" 		-> 	model_nlp
 			| "QCP" | "qlp" 		-> 	model_qcp
@@ -204,7 +283,7 @@ model_types: "LP" | "lp" 			-> 	model_lp
 			| "EMP" | "emp"		 	-> 	model_emp
 			| "MPSGE" | "mpsge" 	-> 	model_mpsge
 
-// Equations
+// equations
 equation_types: "=e=" -> eqn_equality
 				| "=g=" -> eqn_greater_than
 				| "=l=" -> eqn_less_than
@@ -237,6 +316,8 @@ operator_relation: ( "=" | "eq" )		-> rel_eq
 				| ( "<=" | "le" )		-> rel_le
 				| ( "<>" | "ne" )		-> rel_ne
 				| ( "==" )				-> rel_eq_macro
+
+// --------------------------------- functions ---------------------------------
 
 math_functions:  "abs" -> fn_abs
 		| "arccos" 		-> fn_arccos

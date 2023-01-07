@@ -1,5 +1,6 @@
-from gams_parser import GamsParser, scrub_meta
-import json 
+from gams_parser import GamsParser
+from gams2pyomo.util import scrub_meta
+import json
 import pprint
 import logging
 logging.basicConfig(level=logging.DEBUG)
