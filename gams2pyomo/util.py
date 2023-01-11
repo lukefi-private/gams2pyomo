@@ -1,40 +1,3 @@
-def get_path(obj, path):
-    keys = path.split('.')
-    for k in keys:
-        try:
-            obj = obj[k]
-        except KeyError:
-            return None
-    return obj
-
-
-def set_path(obj, path, value):
-    keys = path.split('.')
-    for k in keys[:-1]:
-        if k not in obj.keys():
-            obj[k] = {}
-        obj = obj[k]
-    obj[keys[-1]] = value
-
-
-def scrub_meta(obj, bad=["_meta", "meta"]):
-    if isinstance(obj, dict):
-        for k in obj.keys():
-            if k in bad:
-                del obj[k]
-            else:
-                scrub_meta(obj[k], bad)
-    elif isinstance(obj, list):
-        for i in reversed(range(len(obj))):
-            if obj[i] in bad:
-                del obj[i]
-            else:
-                scrub_meta(obj[i], bad)
-
-    else:
-        # neither a dict nor a list, do nothing
-        pass
-
 def sequence_set(idx1, idx2):
     if isinstance(idx1, int):
         return list(range(idx1, idx2 + 1))
@@ -54,3 +17,25 @@ def sequence_set(idx1, idx2):
         return [prefix + str(i) for i in _set]
     except ValueError:
         return list(range(int(idx1), int(idx2) + 1))
+
+def find_alias(idx, container):
+
+    # index is defined
+    if isinstance(idx, int) or idx.upper() in container.set:
+        return idx
+
+    # index is alias to defined index
+    for aliases in container.symbols['alias']:
+        if idx in aliases:
+            # if so, find the defined index
+            for a in aliases:
+                if a.upper() in container.set:
+                    return a
+
+    # a specific index in the set, return itself
+    return idx
+
+def change_case(str):
+    # change str to snake case
+
+    return ''.join(['_'+i.lower() if i.isupper() else i for i in str]).lstrip('_')

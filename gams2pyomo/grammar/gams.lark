@@ -8,13 +8,13 @@ start: statement+
 								| eq_definition
 								| model_definition
 								| solve_statement
-								| option_setting
+								| option
 								| if_statement
 								| loop_statement
-								| abort_statement )
+								| abort_statement | COMMENT_BLOCK )
 
 
-// ================================ statements =================================
+// ================================ STATEMENTS =================================
 
 // ------------------------------------ $if ------------------------------------
 // conditional compilation
@@ -100,33 +100,39 @@ model_definition: _MODEL string "/" symbol_name+ "/" _END
 
 // ----------------------------- solve definition ------------------------------
 
-solve_statement: _SOLVE string ( "using" model_types sense symbol_name | sense symbol_name "using" model_types) _END
-sense: "minimizing" -> sense_min
-	| "maximizing" 	-> sense_max
+solve_statement: _SOLVE string ( "using" model_type sense symbol_name | sense symbol_name "using" model_type) _END
+model_type: string
+sense: string
 
 
 // -------------------------------- assignment ---------------------------------
 
 assignment: symbol [conditional] "=" expression _END
 
+
 // ---------------------------------- option -----------------------------------
 
-option_setting: _OPTION option_name "=" option_value _END
+option: _OPTION option_name "=" option_value _END
 ?option_name: identifier
-?option_value: WORD | NUMBER
+?option_value: SIGNED_NUMBER | WORD
+
 
 // ---------------------------- equation definition ----------------------------
 
-eq_definition: symbol[conditional] ".." lhs equation_types rhs _END
+eq_definition: symbol [conditional] ".." lhs equation_types rhs _END
 lhs: expression
 rhs: expression
 
 
-// ============================== basic elements ===============================
+// ============================== BASIC ELEMENTS ===============================
+
+value 			: SIGNED_NUMBER
+string			: WORD
+description		: FLEX_ESCAPED_STRING
+
 
 // -------------------------------- definition ---------------------------------
 
-// definitions are seperated by newline or commas, ignore the comma if it exists
 definition: symbol [description] [data] [_COMMA]
 table_definition: symbol [description] [table_data]
 
@@ -135,29 +141,44 @@ table_definition: symbol [description] [table_data]
 
 data			: _SLASH [data_element ((_COMMA|_NL) data_element)*] _SLASH
 table_data 		: (symbol_id | value | macro )+
-?data_element	: value
+data_element	: value
 				| symbol_id
 				| symbol_range
-				| symbol_id value -> data_value
+				| symbol_id value -> idx_value
 				| macro
-value 			: SIGNED_NUMBER
-description		: FLEX_ESCAPED_STRING
 
 
 // -------------------------------- expression ---------------------------------
 
-?expression: func_expression
-			| value
-			| symbol[suffix]
-			| compiler_variable
-			| quoted_string // this is for compiler expressions
-			| operator_indexed _LPAR (index_list | _LPAR index_list _RPAR) [conditional] _COMMA expression _RPAR
-			| expression operator_expression expression
+ADD_OP: "+" | "-"
+MUL_OP: "*" | "/"
+POWER_OP: "**"
+
+// arithmetic operations and parenthesis
+add_expr:    add_expr ADD_OP mul_expr
+    		| mul_expr
+mul_expr:    mul_expr MUL_OP pow_expr
+    		| pow_expr
+pow_expr:    primary POWER_OP pow_expr
+    		| primary
+?primary: indexed_operation | func_expression | value | symbol | _LPAR add_expr _RPAR
+
+// indexed operations
+indexed_operation: operator_indexed _LPAR (index_list | _LPAR index_list _RPAR) [conditional] _COMMA expression _RPAR
+
+// general expressions
+expression:   func_expression
 			| expression operator_logical expression
 			| expression operator_relation expression
-			| _LPAR expression _RPAR
+			| add_expr
 			| expression conditional
 			| negate expression
+			| value
+			| symbol
+			| compiler_variable
+			| quoted_string // this is for compiler expressions
+			| indexed_operation
+			| _LPAR expression _RPAR
 
 func_expression: (math_functions | string_functions | time_functions) _LPAR expression _RPAR
 
@@ -165,47 +186,31 @@ negate: "not" | "NOT"
 
 conditional: "$" expression
 
+
 // ---------------------------------- symbol -----------------------------------
 
 symbol 			: symbol_name[suffix][symbol_index]
-?symbol_index	: _LPAR index_list _RPAR
+symbol_index	: _LPAR index_list _RPAR
 index_list		: index_item (_COMMA index_item )*
-?index_item		: symbol_name
+index_item		: symbol_name
 				| symbol_element
 				| compiler_variable
-				| symbol_name "+" NUMBER -> lead
-				| symbol_name "-" NUMBER -> lag
-				| symbol_name "++" NUMBER -> circular_lead
-				| symbol_name "--" NUMBER -> circular_lag
+				| symbol_name "++" value -> circular_lead
+				| symbol_name "--" value -> circular_lag
+				| symbol_name "+" value -> lead
+				| symbol_name "-" value -> lag
 symbol_range    : identifier "*" identifier
-symbol_id 		: identifier
-				| symbol_id "." identifier
+symbol_id 		: identifier ("." identifier)*
 symbol_element  : _QUOTE identifier _QUOTE
 				| _QUOTE compiler_variable _QUOTE
 symbol_name		: identifier
 // ?identifier 	: WORD_IDENTIFIER|INTEGER
-?identifier 	: WORD_IDENTIFIER | SIGNED_NUMBER
+identifier 		: WORD_IDENTIFIER | SIGNED_NUMBER
 sep				: _COMMA | _NL
-suffix			:  _SUFFIX
-
-// =================================== misc ====================================
+suffix			: _DOT string
 
 
-_SUFFIX : ".modelstat"
-		| ".maxobj"
-		| ".solvestat"
-		| ".objval"
-		| ".resusd"
-		| ".objest"
-		| ".gap"
-		| ".up"
-		| ".lo"
-		| ".l"
-		| ".m"
-		| ".fx"
-		| ".etsolve"
-		| ".resusd"
-
+// =================================== MISC ====================================
 
 // --------------------------------- keywords ----------------------------------
 
@@ -233,6 +238,7 @@ _DISPLAY: "Display" | "display" | "DISPLAY"
 // -------------------------------- punctuation --------------------------------
 
 _COMMA: ","
+_DOT: "."
 _END: ";"
 _LPAR: "("
 _RPAR: ")"
@@ -242,48 +248,39 @@ _SINGLEQUOTE: "'"
 _DOUBLEQUOTE: "\""
 
 
-// ---------------------------------- imports ----------------------------------
+// ------------------------------- word & string -------------------------------
 
-%import common.WS
-%import common.NUMBER
-%import common.SIGNED_NUMBER
-%import common.SIGNED_FLOAT
-%import common.NEWLINE -> _NL
-
-// INTEGER 		: /[0-9]+/
-NAME           	: /[^\W\d][\w]*/
-string			: WORD
-// this allows some more characters that can be used in a symbol name
+// 		[\w]: [a-zA-Z0-9_]
+// 		[\w-]: [\w] plus hyphen
+// word started with a letter
 WORD_IDENTIFIER : /[a-zA-Z][\w-]*/
 WORD			: /[\w-]+/
+// 		.: any one chracter but new line
+// 		.?: curb greediness
+// 		(): group sub-expressions
+// 		?<!: negative lookbehind; looking for "\'" or "\"" without \\ before it
 FLEX_ESCAPED_STRING : /['"].*?(?<!\\)['"]/
 
-// ignores/comments
-COMMENT : /\*[^\n]+/
-COMMENT_BLOCK: ("$ontext" | "$ONTEXT") /(\S|\s)*?/ ("$offtext" | "$OFFTEXT")
-%ignore COMMENT_BLOCK
-%ignore WS
+
+// ------------------------------ comments and WS ------------------------------
+
+// 		^: assert position at line beginning
+// 		[^\n]: a character other than newline
+// add `\n` at the beginning to correct detect comments
+// although `_NL` is ignored, lark is still able to identify `\n` for comments
+COMMENT : /\n\*[^\n]+/
 %ignore COMMENT
 
-// model types
-model_types: "LP" | "lp" 			-> 	model_lp
-			| "NLP" | "nlp" 		-> 	model_nlp
-			| "QCP" | "qlp" 		-> 	model_qcp
-			| "DNLP" | "dnlp" 		-> 	model_dnlp
-			| "MIP" | "mip"			-> 	model_mip
-			| "RMIP" | "rmip" 		-> 	model_rmip
-			| "RMINLP" | "rminlp" 	-> 	model_rminlp
-			| "MINLP" | "minlp"		-> 	model_minlp
-			| "MIQCP" | "miqcp"		-> 	model_miqcp
-			| "RMIQCP" | "rmiqcp"	-> 	model_rmiqcp
-			| "MCP" | "mcp"			-> 	model_mcp
-			| "CNS" | "cns"			-> 	model_cns
-			| "MPEC" | "mpec"		-> 	model_mpec
-			| "RMPEC" | "rmpec"		-> 	model_rmpec
-			| "EMP" | "emp"		 	-> 	model_emp
-			| "MPSGE" | "mpsge" 	-> 	model_mpsge
+COMMENT_BLOCK: ("$ontext" | "$ONTEXT") /(\S|\s)*?/ ("$offtext" | "$OFFTEXT")
 
-// equations
+// the updated `WS` exclude `\n` for the comments
+WS: (/[ \t\f\r]/+) | (/(\n(?!\*))/+)
+%ignore WS
+%ignore _NL
+
+
+// --------------------------------- equations ---------------------------------
+
 equation_types: "=e=" -> eqn_equality
 				| "=g=" -> eqn_greater_than
 				| "=l=" -> eqn_less_than
@@ -302,7 +299,7 @@ operator_expression: "**" 	-> exponentiation
 					| "*"	-> multiplication
 					| "/"	-> division
 					| "+"	-> addition
-					| "-"   -> substraction
+					| "-"   -> subtraction
 
 operator_logical: "not" 	-> bool_not
 				| "and" 	-> bool_and
@@ -310,12 +307,13 @@ operator_logical: "not" 	-> bool_not
 				| "xor"		-> bool_or
 
 operator_relation: ( "=" | "eq" )		-> rel_eq
-				| ( ">" | "gt" )		-> rel_gt
-				| ( "<" | "lt" )		-> rel_lt
+				| ( ">" | "gt" )		-> abs_gt
+				| ( "<" | "lt" )		-> abs_lt
 				| ( ">=" | "ge" )		-> rel_ge
 				| ( "<=" | "le" )		-> rel_le
 				| ( "<>" | "ne" )		-> rel_ne
 				| ( "==" )				-> rel_eq_macro
+
 
 // --------------------------------- functions ---------------------------------
 
@@ -401,3 +399,11 @@ time_functions: "gday"		-> fn_gday
 			| "jnow"		-> fn_jnow
 			| "jstart"		-> fn_jstart
 			| "jtime"		-> fn_jtime
+
+
+// ---------------------------------- imports ----------------------------------
+
+// %import common.WS
+%import common.NUMBER
+%import common.SIGNED_NUMBER
+%import common.NEWLINE -> _NL

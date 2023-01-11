@@ -1,5 +1,7 @@
 $ONTEXT
 
+source: https://github.com/bbrunaud/PlasmoAlgorithms.jl/blob/clrootnode/examples/TankSizing/continuous/improved_tanksize2.gms
+
 Tank sizing problem based on the three product example in
 Rebennack et al., Computers and Chemical Engineering, 2011
 This model contains three uncertain product demands.
@@ -289,7 +291,7 @@ EQUATIONS
 *		EQUATION DEFINITIONS
 *-------------------------------------
 
-objective .. objvar =e= sum(h,prob(h)*costPerTon(h))+ VariableInvestmentCostFactor * sum(h, prob[h] /TotalDemandPerDay[h]) *sum(p, sqrt(productTankSize[p]))
+objective .. objvar =e= sum(h,prob(h)*costPerTon(h))+ VariableInvestmentCostFactor * sum(h, prob(h) /TotalDemandPerDay(h)) *sum(p, sqrt(productTankSize(p)))
 ;
 
 *** time balance constraint with unknown cycle time T
