@@ -7,7 +7,7 @@ from .util import find_alias
 logger = logging.getLogger('gams_parser.model')
 logging.basicConfig(level=logging.WARNING)
 
-_SUFFIX = 'm.'
+_PREFIX = 'm.'
 _NL = '\n'
 
 
@@ -69,7 +69,7 @@ class ComponentContainer(object):
 
     @property
     def variable(self):
-        return self.symbols['variable']
+        return self.symbols['variable'] + self.symbols['p_variable'] + self.symbols['b_variable']
 
     @property
     def scalar(self):
@@ -154,7 +154,7 @@ class Symbol(Tree):
             res = _indent
         else:
             res = ''
-        res += _SUFFIX
+        res += _PREFIX
 
         res += self.name
         if self.index_list:
@@ -251,7 +251,7 @@ class EquationDefinition():
 
     def _assemble_declaration(self):
 
-        res = _SUFFIX + self.name + ' = Constraint('
+        res = _PREFIX + self.name + ' = Constraint('
 
         global leap_lag_op, leap_lag_var, leap_lag_val
         if leap_lag_op:
@@ -259,17 +259,17 @@ class EquationDefinition():
                 for _idx in self.index_list:
                     if _idx == leap_lag_var:
                         if leap_lag_op == 'leap':
-                            res += f'list({_SUFFIX +_idx.upper()})[{leap_lag_val}:], '
+                            res += f'list({_PREFIX +_idx.upper()})[{leap_lag_val}:], '
                         else:  # 'lag'
-                            res += f'list({_SUFFIX +_idx.upper()})[:-{leap_lag_val}], '
+                            res += f'list({_PREFIX +_idx.upper()})[:-{leap_lag_val}], '
                     else:
-                        res += f'{_SUFFIX +_idx.upper()}, '
+                        res += f'{_PREFIX +_idx.upper()}, '
             res += f'rule={self.name})' + _NL
             return res
         else:
             if self.index_list:
                 for _idx in self.index_list:
-                    res += f'{_SUFFIX +_idx.upper()}, '
+                    res += f'{_PREFIX +_idx.upper()}, '
             res += f'rule={self.name})' + _NL
             return res
 
@@ -325,12 +325,12 @@ class SolveStatement():
 
         # declare objective
         # NOTE what if _obj_ is used
-        res = f'm._obj_ = Objective(rule={_SUFFIX + self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
+        res = f'm._obj_ = Objective(rule={_PREFIX + self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
 
         # assign solver via model type
         res += f"opt = SolverFactory(options['{self.type.lower()}'])" + _NL
         # solve
-        res += f'opt.solve(m)' + _NL
+        res += f'opt.solve(m, tee=True)' + _NL
         return res
 
 
@@ -413,7 +413,7 @@ class Assignment():
         # loop lines
         if build_loop:
             for (_i, _s) in _set_dict.items():
-                res += _indent + f'for {_i} in {_SUFFIX + _s}:' + _NL
+                res += _indent + f'for {_i} in {_PREFIX + _s}:' + _NL
                 _indent += '\t'
 
         # conditional lines
@@ -514,23 +514,13 @@ class Definition():
     equation = None
     symbol_ref = []
 
-    def __init__(self, children, meta):
+    def __init__(self, symbol, description, data, meta, type=None):
 
-        # logger.debug("Build Definition: {}".format(args))
-        # self._meta = meta
-
-        # TODO: move the parse part into transformer
+        self.symbol, self.description, self.data = symbol, description, data
+        if type:
+            self.type = type
 
         self.lines = (meta.line, meta.end_line)
-
-        self.symbol = children[0]
-
-        for c in children[1:]:
-            # description
-            if isinstance(c, str):
-                self.description = c
-            else:
-                self.data = c
 
     # def __repr__(self):
     #     output = []
@@ -557,7 +547,7 @@ class Definition():
                 'p_variable': 'p',
                 'variable': ''
             }
-            return self._assemble_variable(_domain_dict[self.type])
+            return self._assemble_variable(_domain_dict[self.type], container)
         elif self.type == 'equation':
             # no need to declare equation name, skip
             return ''
@@ -570,7 +560,7 @@ class Definition():
         doc = self.description
         data = self.data
 
-        res = _SUFFIX + f"{symbol_name} = Set(initialize={data}, ordered=True"
+        res = _PREFIX + f"{symbol_name} = Set(initialize={data}, ordered=True"
         if doc:
             res += f", doc='{doc}')"
         else:
@@ -585,9 +575,12 @@ class Definition():
         doc = self.description
 
         # make all parameters mutable to handle potential update later
-        res = _SUFFIX + f"{symbol_name} = Param(mutable=True"
+        res = _PREFIX + f"{symbol_name} = Param(mutable=True"
         if data:
-            res += f", initialize={data}"
+            if isinstance(data, list):
+                res += f", initialize={data[0]}"
+            else:
+                res += f", initialize={data}"
         if doc:
             res += f", doc='{doc}'"
         res += ")" + _NL
@@ -602,57 +595,74 @@ class Definition():
         if isinstance(data, list):
             data = {k: v for (k, v) in data}
 
-        res = _SUFFIX + f"{symbol_name} = Param("
+        res = _PREFIX + f"{symbol_name} = Param("
 
         # add index
         if hasattr(self.symbol, 'index_list') and self.symbol.index_list:
             for _idx in self.symbol.index_list:
-                res += _SUFFIX + f"{_idx.upper()}, "
+                res += _PREFIX + f"{_idx.upper()}, "
         # make all parameters mutable to handle potential update later
         res += "mutable=True"
+        # data
         if data:
-            res += f", initialize={data}"
+            # when scalar is declared as parameter
+            if len(data) == 1:
+                res += f", initialize={data[0]}"
+            else:
+                res += f", initialize={data}"
+        # doc
         if doc:
             res += f", doc='{doc}'"
         res += ")" + _NL
         return res
 
-    def _assemble_variable(self, domain):
+    def _assemble_variable(self, domain, container: ComponentContainer):
+
         symbol_name = self.symbol.name
         doc = self.description
         data = self.data
 
-        # update the data structure
-        if isinstance(data, list):
-            data = {k: v for (k, v) in data}
-
-        res = _SUFFIX + f"{symbol_name} = Var("
-
-        _has_prev_terms = False
-        # add index
-        if hasattr(self.symbol, 'index_list') and self.symbol.index_list:
-            _has_prev_terms = True
-            for _idx in self.symbol.index_list:
-                res += _SUFFIX + f"{_idx.upper()}, "
-        # domain
-        if domain == 'b':
-            res += "within=Binary"
-        elif domain == 'p':
-            res += "within=NonNegativeReals"
+        # before assembling, check if the declaration is to update domain
+        if symbol_name in container.variable:
+            res = _PREFIX + symbol_name
+            res += '.domain = '
+            if domain == 'b':
+                res += 'Binary'
+            elif domain == 'p':
+                res += 'NonNegativeReals'
+            else:
+                res += 'Any'
+            return res + _NL
         else:
-            pass
 
-        if data:
-            if _has_prev_terms:
-                res += ', '
-            res += f"initialize={data}"
-            _has_prev_terms = True
-        if doc:
-            if _has_prev_terms:
-                res += ', '
-            res += f"doc='{doc}'"
-        res += ")" + _NL
-        return res
+
+            # update the data structure
+            if isinstance(data, list):
+                data = {k: v for (k, v) in data}
+
+            res = _PREFIX + f"{symbol_name} = Var("
+
+            _tmp_res = []
+            # add index
+            if hasattr(self.symbol, 'index_list') and self.symbol.index_list:
+                for _idx in self.symbol.index_list:
+                    _tmp_res.append(_PREFIX + f"{_idx.upper()}")
+            # domain
+            if domain == 'b':
+                _tmp_res.append("within=Binary")
+            elif domain == 'p':
+                _tmp_res.append("within=NonNegativeReals")
+            else:
+                pass
+
+            if data:
+                _tmp_res.append(f"initialize={data}")
+            if doc:
+                _tmp_res.append(f"doc='{doc}'")
+
+            res += ", ".join(_tmp_res) + ")" + _NL
+
+            return res
 
 
 class SymbolId():
@@ -770,7 +780,7 @@ class LoopStatement():
         res = ''
 
         # loop lines
-        res += _indent + f'for {_idx} in {_SUFFIX + _set}:' + _NL
+        res += _indent + f'for {_idx} in {_PREFIX + _set}:' + _NL
         # increase indent
         _indent += '\t'
 
@@ -825,13 +835,34 @@ class Alias():
 
 
 class Display():
-    def __init__(self, symbol_names, meta):
-        self.symbol_names = symbol_names
+    def __init__(self, symbols, meta):
+        self.symbols = symbols
         self.lines = (meta.line, meta.end_line)
 
     def assemble(self, container: ComponentContainer, _indent='', **kwargs):
-        symbols = [_SUFFIX + s for s in self.symbol_names]
-        return f'print({", ".join(symbols)})'
+        res = ''
+
+        _tmp_res = []
+        for symbol in self.symbols:
+
+            if symbol.index_list:
+                raise NotImplementedError
+            elif symbol.suffix:
+                # activity level
+                if symbol.suffix == 'l':
+                    _res = symbol.name
+                    _res = _PREFIX + _res + '.pprint()' + _NL
+                else:
+                    logger.warn(f"Not supported suffix type for display: '.{symbol.suffix}'")
+                    continue
+            else:
+                _res = symbol.assemble(container, _indent)
+
+            _tmp_res.append(_res)
+
+        res += ''.join(_tmp_res)
+
+        return res
 
 
 class Option():
@@ -883,7 +914,7 @@ class SpecialIndex():
             'circular_lag': 'prevw',
         }
 
-        res = _SUFFIX + self.index.upper() + '.' + _type_dict[self.type] + '('
+        res = _PREFIX + self.index.upper() + '.' + _type_dict[self.type] + '('
         res += self.index + ', ' + str(self.value) + ')'
 
         return res
@@ -900,9 +931,9 @@ class UnaryExpression():
 
         o = self.operand
         if self.operator.data == 'fn_card':
-            res = f'len({_SUFFIX + o.name.upper()})'
+            res = f'len({_PREFIX + o.name.upper()})'
         elif self.operator.data == 'fn_ord':
-            res = f'list({_SUFFIX + o.name.upper()}).index({o.name}) + 1'
+            res = f'list({_PREFIX + o.name.upper()}).index({o.name}) + 1'
         elif self.operator.data == 'fn_errorf':
             res = f'(1 + math.erf(({o.assemble(container, _indent)}) / math.sqrt(2))) / 2'
         elif self.operator.data == 'fn_sqrt':
@@ -1058,7 +1089,7 @@ class SumExpression(IndexedExpression):
 
         for _idx in self.idx:
             _idx = find_alias(_idx, container)
-            res += f' for {_idx} in {_SUFFIX + _idx.upper()}'
+            res += f' for {_idx} in {_PREFIX + _idx.upper()}'
         res += ')'
 
         return res
@@ -1081,7 +1112,7 @@ class SetMaxExpression(IndexedExpression):
 
         for _idx in self.idx:
             _idx = find_alias(_idx, container)
-            res += f' for {_idx} in {_SUFFIX + _idx.upper()}'
+            res += f' for {_idx} in {_PREFIX + _idx.upper()}'
 
         res += '])'
 
@@ -1107,7 +1138,7 @@ class SetMinExpression(IndexedExpression):
 
         for _idx in self.idx:
             _idx = find_alias(_idx, container)
-            res += f' for {_idx} in {_SUFFIX + _idx.upper()}'
+            res += f' for {_idx} in {_PREFIX + _idx.upper()}'
 
         res += '])'
 
@@ -1115,6 +1146,21 @@ class SetMinExpression(IndexedExpression):
 
         return res
 
+
+class Macro():
+
+    def __init__(self, option, args, meta):
+        self.option, self.args = option, args
+        self.lines = (meta.line, meta.end_line)
+
+    def assemble(self, container: ComponentContainer, _indent='', **kwargs):
+
+        if self.option == 'title':
+            global model_title
+            model_title = self.args
+            return ''
+        else:
+            raise NotImplementedError
 
 _ASSEMBLE_TYPES = (Symbol, SumExpression, BinaryExpression,
                    ArithmeticExpression, UnaryExpression, SetMaxExpression,

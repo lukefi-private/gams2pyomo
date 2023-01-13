@@ -4,10 +4,10 @@ import os
 from .transformer import GAMSTransformer
 import logging
 
-logger = logging.getLogger('gams_parser')
+logger = logging.getLogger('gams_translator')
 
 dirname = os.path.dirname(__file__)
-grammar = os.path.join(dirname, 'grammar/gams.lark')
+grammar = os.path.join(dirname, 'gams.lark')
 
 
 with open(grammar, 'r') as in_file:
@@ -15,7 +15,7 @@ with open(grammar, 'r') as in_file:
     lark_gams = Lark(text, propagate_positions=True)
 
 
-class GamsParser():
+class GAMSTranslator():
 
     def __init__(self, file):
 
@@ -34,20 +34,6 @@ class GamsParser():
         """
 
         lines = self.text.split('\n')
-
-        # # remove comment block
-        # new_lines = []
-        # comment_block = False
-        # for i, l in enumerate(lines):
-
-        #     if len(l) >= 7 and '$ontext' in l.lower():
-        #         comment_block = True
-        #     if len(l) >= 8 and '$offtext' in l.lower():
-        #         comment_block = False
-
-        #     if not comment_block:
-        #         # store line number and comment contents
-        #         new_lines.append(l)
 
         # remove the first-line comments (as they lack `\n` and cannot be parsed by lark)
         while len(lines[0]) > 0 and lines[0][0] == '*':
@@ -111,6 +97,4 @@ class GamsParser():
         transformer = GAMSTransformer()
         transformer.import_comments(comments)
         res = transformer.transform(parse_tree)
-        # res.cross_reference()
-        # res.reference_lines(self.text)
         return res
