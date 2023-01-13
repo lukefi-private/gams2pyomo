@@ -7,21 +7,24 @@ from .util import sequence_set
 logger = logging.getLogger('gams_parser.model')
 logging.basicConfig(level=logging.DEBUG)
 
-HEADING = \
+HEADING_1 = \
 r"""from pyomo.environ import *
 import math
 
 
-m = ConcreteModel()
+m = ConcreteModel("""
+
+HEADING_2 = r""")
 options = {}
 
 """
 
-_STATEMENT_TYPES = (EquationDefinition, ModelDefinition, SolveStatement,
-                    Assignment, Definition, IfStatement, LoopStatement,
-                    AbortStatement, Alias, Display, Option)
+_NON_DEF_STATEMENT_TYPES = (EquationDefinition, ModelDefinition, SolveStatement, Assignment,
+                            Definition, IfStatement, LoopStatement, AbortStatement, Alias, Display, Option, Macro)
+_STATEMENT_TYPES = (Definition, ) + _NON_DEF_STATEMENT_TYPES
+_ARITHMETIC_TYPES = (Symbol, int, float, UnaryExpression,
+                     ArithmeticExpression, SetMinExpression, SetMaxExpression, SumExpression)
 
-_ARITHMETIC_TYPES = (Symbol, int, float, UnaryExpression, ArithmeticExpression, SetMinExpression, SetMaxExpression, SumExpression)
 
 @v_args(meta=True)
 class GAMSTransformer(Transformer):
@@ -70,9 +73,6 @@ class GAMSTransformer(Transformer):
         container = ComponentContainer()
 
         res = ''
-        # heading
-        if self._with_head:
-            res += HEADING
 
         # assemble each statement
         for c in children:
@@ -89,7 +89,7 @@ class GAMSTransformer(Transformer):
                 container.add_alias(c.aliases)
 
             # non-definition statements
-            if isinstance(c, (Option, Alias, EquationDefinition, ModelDefinition, SolveStatement, Display, Assignment, IfStatement, LoopStatement, AbortStatement)):
+            if isinstance(c, _NON_DEF_STATEMENT_TYPES):
                 res += c.assemble(container)
 
             # definition lists
@@ -112,13 +112,6 @@ class GAMSTransformer(Transformer):
                 comment_block = c.value[8:-8]
                 res += f'\n"""{comment_block}"""\n\n'
 
-            # # comment
-            # elif isinstance(c, Token) and c.type == 'COMMENT':
-            #     res += '# ' + c.value[1:] + '\n'
-            # new line
-            # elif isinstance(c, Tree) and c.data == 'statement' and len(c.children) == 0:
-            #     pass
-
             else:
                 raise NotImplementedError(f"failed to assemble type {type(c)} (not in the definition list) at root node.")
 
@@ -127,6 +120,14 @@ class GAMSTransformer(Transformer):
             while self.comments:
                 comment = self.comments.pop(0)[1]
                 res += '# ' + comment + '\n'
+
+        # add heading
+        if self._with_head:
+            if 'model_title' in globals():
+                global model_title
+                res = HEADING_1 + f"name={model_title}" + HEADING_2 + res
+            else:
+                res = HEADING_1 + HEADING_2 + res
 
         return res
 
@@ -295,9 +296,22 @@ class GAMSTransformer(Transformer):
     # basic elements -----------------------------------------------------------
 
     def definition(self, children, meta):
-        return Definition(children, meta)
+
+        symbol = children[0]
+        data = None
+        description = None
+
+        for c in children[1:]:
+            if isinstance(c, str):
+                description = c
+            else:
+                data = c
+
+        return Definition(symbol, description, data, meta)
 
     def data(self, children, _):
+        if isinstance(children, list):
+            return children
         if len(children) == 1:
             return children[0]
         # idx_value
@@ -312,7 +326,7 @@ class GAMSTransformer(Transformer):
         # probably most of the time?
         if len(children) == 1:
             c = children[0]
-            if isinstance(c, (list, float, int)):
+            if isinstance(c, (list, float, int, str)):
                 return c
         raise NotImplementedError
 
@@ -484,9 +498,43 @@ class GAMSTransformer(Transformer):
     def index_list(self, children, _):
         # `children` should be a list of indices
         return children
-        # raise NotImplementedError
-        # logger.debug("IndexList {}".format(children))
-        # return IndexList('index_list', children, meta)
+
+    def table(self, children, _):
+        return children[0]
+
+    def table_data(self, children, _):
+        data = {}
+        list_j = children[0].children
+        len_j = len(list_j)
+
+        _counter = 0
+        idx_i = None
+        for c in children[1:]:
+            if _counter == 0:
+                idx_i = c
+            else:
+                idx_j = list_j[_counter - 1]
+                data[idx_i, idx_j] = c
+            _counter = (_counter + 1) % (len_j + 1)
+
+        return data
+
+    def macro(self, children, meta):
+        option = children[0].value
+        args = children[1].value
+        return Macro(option, args, meta)
+
+    def table_definition(self, children, meta):
+
+        symbol = children[0]
+        data = None
+        description = None
+        for c in children[1:]:
+            if isinstance(c, dict):
+                data = c
+            else:
+                description = c
+        return Definition(symbol, description, data, meta, type='parameter')
 
     # rules not implemented yet ------------------------------------------------
 
@@ -507,15 +555,6 @@ class GAMSTransformer(Transformer):
 
     def func_expression(self, children, _):
         return UnaryExpression(*children)
-
-    def table_data(self, children, _):
-        raise NotImplementedError
-
-    def macro(self, children, _):
-        raise NotImplementedError
-
-    def table_definition(self, children, _):
-        raise NotImplementedError
 
     def index_element(self, children, _):
         raise NotImplementedError

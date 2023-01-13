@@ -1,6 +1,9 @@
+// https://www.gams.com/latest/docs/UG_GAMSPrograms.html#UG_GAMSPrograms_Identifiers
+
 start: statement+
 
 ?statement: [macro_conditional] (symbol_definition
+								| COMMENT_BLOCK
 								| macro
 								| execute
 								| display
@@ -11,7 +14,7 @@ start: statement+
 								| option
 								| if_statement
 								| loop_statement
-								| abort_statement | COMMENT_BLOCK )
+								| abort_statement )
 
 
 // ================================ STATEMENTS =================================
@@ -57,15 +60,20 @@ abort_statement: _ABORT [(identifier | description) (_COMMA identifier | descrip
 
 // ----------------------------------- macro -----------------------------------
 
-macro: macro_include  _NL
-	| "$" macro_set _NL
-	| "$" macro_words~1..5 [" "]~0..5 _NL
+// macro: macro_include  _NL
+// 	| _DOLLAR macro_set _NL
+// 	| _DOLLAR macro_words~1..5 [" "]~0..5 _NL
+// 	| _DOLLAR ("title" | "TITLE" | "Title") title_name _NL
 
-macro_include: "$include" filename
-macro_set: _M_SET WORD WORD
-macro_words: _M_EMPTY
-			| _M_LISTING
-			| _M_DELIM
+// macro_include: _DOLLAR "include" filename
+// macro_set: _M_SET WORD WORD
+// macro_words: _M_EMPTY
+// 			| _M_LISTING
+// 			| _M_DELIM
+// title_name: /.*?(?<!\n)/
+
+macro: _DOLLAR dollar_option [dollar_argument_list] (dollar_option [dollar_argument_list])* _NL
+?dollar_argument_list: /[^\n]+/
 
 
 // ---------------------------------- execute ----------------------------------
@@ -90,7 +98,7 @@ _M_SET: "set"
 
 // ---------------------------------- display ----------------------------------
 
-display: _DISPLAY symbol_name ([_COMMA] symbol_name )* _END
+display: _DISPLAY symbol ([_COMMA] symbol )* _END
 
 
 // ----------------------------- model definition ------------------------------
@@ -140,7 +148,9 @@ table_definition: symbol [description] [table_data]
 // ----------------------------------- data ------------------------------------
 
 data			: _SLASH [data_element ((_COMMA|_NL) data_element)*] _SLASH
-table_data 		: (symbol_id | value | macro )+
+// table_data 		: (symbol_id | value | macro )+
+table_data 		: index_row _NL (symbol_id value+ [_NL])+
+?index_row		: symbol_id+
 data_element	: value
 				| symbol_id
 				| symbol_range
@@ -205,6 +215,7 @@ symbol_element  : _QUOTE identifier _QUOTE
 				| _QUOTE compiler_variable _QUOTE
 symbol_name		: identifier
 // ?identifier 	: WORD_IDENTIFIER|INTEGER
+// TODO: add underscore to identifier
 identifier 		: WORD_IDENTIFIER | SIGNED_NUMBER
 sep				: _COMMA | _NL
 suffix			: _DOT string
@@ -214,25 +225,26 @@ suffix			: _DOT string
 
 // --------------------------------- keywords ----------------------------------
 
-_SET: "sets" | "Sets" | "SETS" | "Set" | "SET" | "set"
-_PARAMETER: "Parameter" | "PARAMETER" | "parameter" | "Parameters" | "PARAMETERS" | "parameters"
-_TABLE: "Table" | "table"
-_VARIABLE: "variable" | "VARIABLE" | "Variable" | "variables" | "VARIABLES" | "Variables"
-_PVARIABLE: "positive variables" | "positive variable" | "POSITIVE VARIABLES" | "POSITIVE VARIABLE" | "Positive variables" | "Positive variable" | "Positive Variables"
-_BVARIABLE: "binary variables" | "binary variable" | "BINARY VARIABLES" | "BINARY VARIABLE" | "binary variables" | "Binary variable"
-_EQUATION: "Equations" | "equations" | "EQUATIONS" | "EQUATIONS"
-_MODEL: "Model" | "model" | "MODEL"
-_SOLVE: "Solve" | "solve" | "SOLVE"
-_SCALAR: "scalar" | "SCALAR" | "scalars" | "SCALARS"
-_ALIAS: ("alias" | "Alias")
+_SET: ("set" ["s"]) | ("Set" ["s"]) | ("SET" ["S"])
+_PARAMETER: ("parameter" ["s"]) | ("Parameter" ["s"]) | ("PARAMETER" ["S"])
+_TABLE: "table" | "Table" | "TABLE"
+_VARIABLE: ("variable" ["s"]) | ("Variable" ["s"]) | ("VARIABLE" ["S"])
+_PVARIABLE: ("positive variable" ["s"]) | ("Positive variable" ["s"]) | ("Positive Variable" ["s"]) | ("POSITIVE VARIABLE" ["S"])
+_BVARIABLE: ("binary variable" ["s"]) | ("Binary variable" ["s"]) | ("Binary Variable" ["s"]) | ("BINARY VARIABLE" ["S"])
+_EQUATION: ("equation" ["s"]) | ("Equation" ["s"]) | ("EQUATION" ["S"])
+_MODEL: "model" | "Model" | "MODEL"
+_SOLVE: "solve" | "Solve" | "SOLVE"
+_SCALAR: ("scalar" ["s"]) | ("Scalar" ["s"]) | ("SCALAR" ["S"])
+_ALIAS: "alias" | "Alias" | "ALIAS"
 _OPTION: "OPTION" | "option"
-_IF: "if" | "IF"
-_ELSEIF: "elseif" | "ELSEIF"
-_ELSE: "else" | "ELSE"
-_DOLLARIF: "$if" | "$IF"
-_LOOP: "loop" | "LOOP"
-_ABORT: "abort" | "ABORT"
-_DISPLAY: "Display" | "display" | "DISPLAY"
+_IF: "if" | "If" | "IF"
+_ELSEIF: "elseif" | "Elseif" | "ELSEIF"
+_ELSE: "else" | "Else" | "ELSE"
+_DOLLARIF: "$if" | "$If" | "$IF"
+_DOLLAR: "$"
+_LOOP: "loop" | "Loop" | "LOOP"
+_ABORT: "abort" | "Abort" | "ABORT"
+_DISPLAY: "display" | "Display" | "DISPLAY"
 
 
 // -------------------------------- punctuation --------------------------------
@@ -271,13 +283,49 @@ FLEX_ESCAPED_STRING : /['"].*?(?<!\\)['"]/
 COMMENT : /\n\*[^\n]+/
 %ignore COMMENT
 
-COMMENT_BLOCK: ("$ontext" | "$ONTEXT") /(\S|\s)*?/ ("$offtext" | "$OFFTEXT")
+COMMENT_BLOCK: ("$ontext" | "$ONTEXT" | "$onText") /(\S|\s)*?/ ("$offtext" | "$OFFTEXT" | "$offText")
 
 // the updated `WS` exclude `\n` for the comments
 WS: (/[ \t\f\r]/+) | (/(\n(?!\*))/+)
 %ignore WS
 %ignore _NL
 
+// ------------------------------ dollar options -------------------------------
+
+!?dollar_option: "comment" | "eolCom" | "inlineCom" | "maxCol" | "minCol"
+| "offEolCom" | "offInline" | "offMargin" | "offNestCom" | "onEolCom"
+| "onInline" | "onMargin" | "onNestCom" | "dollar" | "offDelim"
+| "offDigit" | "offEmbedded" | "offEmpty" | "offEnd" | "offEps" | "offExternalInput"
+| "offGlobal" | "offIDCProtect" | "offSuffixDLVars" | "offSuffixAlgebraVars" | "offUNDF"
+| "offUni" | "offWarning" | "onDelim" | "onDigit" | "onEmbedded" | "onEmpty"
+| "onEnd" | "onEps" | "onExternalInput" | "onGlobal" | "onIDCProtect" | "onSuffixDLVars"
+| "onSuffixAlegbraVars" | "onUNDF" | "onUni" | "onWarning" | "use205" | "use225" | "use999"
+| "version" | "double" | "echo" | "echoN" | "eject" | "hidden" | "lines" | "log" | "offDollar"
+| "offEcho" | "offExternalOutput" | "offEpsToZero" | "offInclude" | "offListing" | "offLog"
+| "offPut" | "offUpper" | "offVerbatim" | "onDollar" | "onEcho" | "onEchoS" | "onEchoV"
+| "onEpsToZero" | "onExternalOutput" | "onInclude" | "onListing" | "onLog" | "onPut" | "onPutS"
+| "onPutV" | "onUpper" | "onVerbatim" | "remark" | "single" | "stars" | "sTitle" | "title"
+| "offSymList" | "offSymXRef" | "offUElList" | "offUElXRef" | "onSymList" | "onSymXRef"
+| "onUElList" | "onUElXRef" | "abort" | "batInclude" | "call" | "call" | "call" | "clear"
+| "clearError" | "else" | "elseIf" | "elseIfE" | "elseIfI" | "endif" | "error" | "exit"
+| "funcLibIn" | "goto" | "hiddenCall" | "hiddenCall" | "hiddenCall" | "if" | "ifE" | "ifI"
+| "ifThen" | "ifThenE" | "ifThenI" | "include" | "kill" | "label" | "libInclude" | "offCheckErrorLevel"
+| "offECImplicitLoad" | "offEmbeddedCode" | "offFiltered" | "offMulti" | "offOrder" | "offRecurse"
+| "offStrictSingleton" | "onCheckErrorLevel" | "onECImplicitLoad" | "onEmbeddedCode" | "onEmbeddedCodeS"
+| "onEmbeddedCodeV" | "onFiltered" | "onMulti" | "onMultiR" | "onOrder" | "onRecurse"
+| "onStrictSingleton" | "maxGoTo" | "phantom" | "shift" | "stop" | "sysInclude"
+| "terminate" | "warning" | "gdxIn" | "gdxLoad" | "gdxOut" | "gdxUnload" | "load"
+| "loadDC" | "loadDCM" | "loadDCR" | "loadFiltered" | "loadFilteredM" | "loadFilteredR"
+| "loadM" | "loadR" | "offExternalInput" | "offExternalOutput" | "offFiltered" | "onExternalInput"
+| "onExternalOutput" | "onFiltered" | "unLoad" | "drop" | "dropGlobal" | "dropLocal"
+| "dropEnv" | "escape" | "eval" | "eval" | "evalGlobal" | "evalGlobal" | "evalLocal"
+| "evalLocal" | "prefixPath" | "scratchFileName" | "setArgs" | "setComps"
+| "setDDList" | "setDDList" | "setEnv" | "set" | "setGlobal" | "setLocal" | "setNames"
+| "show" | "showFiles" | "showMacros" | "showVariables" | "splitOption" | "macro"
+| "offDotL" | "offDotScale" | "offExpand" | "offLocal" | "offMacro" | "onDotL"
+| "onDotScale" | "onExpand" | "onLocal" | "onMacro" | "compress" | "decompress"
+| "encrypt" | "expose" | "hide" | "protect" | "purge"
+// | "onText" | "offText"
 
 // --------------------------------- equations ---------------------------------
 
