@@ -1,7 +1,7 @@
 
 ****************************
 *** Model Initialization ***
-**************************** 
+****************************
 
 
 ************
@@ -12,29 +12,29 @@ $ontext
 The model can be temporally decomposed in a few ways.
 $offtext
 
-set     
+set
     time                  "Time index of model. Currently assumed to be hourly.";
 
-alias (time,t);     
+alias (time,t);
 
 set
 *   Date time map
-    datetime_comp         "Datetime components used to map a time index to a real datetime." 
+    datetime_comp         "Datetime components used to map a time index to a real datetime."
                             /year,month,day,hour,minute,second/
     year                  "Years possible in the simulat" /y2018*y2028/
     month                 "Months of the year" /m1*m12/
     m2t(month,time)       "Map month to time"
 
 *   Solve subset of time
-    ch(time)              "These time elements are included in the current solve (includes look ahead)." 
+    ch(time)              "These time elements are included in the current solve (includes look ahead)."
     ch_store(time)        "These time elements are saved after the current solve (excludes look back/ahead)"
     ch_all(time)         "These time elements include both the look ahead and look back period"
 
 *   Solve in larger window usings look ahead, look back
     ch_window(time,t)       "This set maps a single time element to include its lookahead window"
     ch_back_window(time,t)  "This set maps a single time element to include its lookback window"
-    lookbacktime(time,t)    "Look back time exclusive of current time" 
-    lookaheadtime(time,t)   "Look ahead time exclusive of current time" 
+    lookbacktime(time,t)    "Look back time exclusive of current time"
+    lookaheadtime(time,t)   "Look ahead time exclusive of current time"
 
 *   Solve many subsets in blocks
     block                           "A block represents a chunk of time to solve together"
@@ -63,10 +63,10 @@ $include %gamsfolder%em_init_time.inc
 *** Sets ***
 ************
 
-set     
+set
 *   Components
-    bus                     "Fundamental node of the network to which loads, generators, and transmission lines attach." 
-    branch                  "A branch in the network connects two busses and include transmission and transformers." 
+    bus                     "Fundamental node of the network to which loads, generators, and transmission lines attach."
+    branch                  "A branch in the network connects two busses and include transmission and transformers."
     passive(branch)         "Passive branches represent AC power lines within a synchronous grid and are not directly controllable."
     transformer(branch)     "Transformers represent 2-winding transformers that convert AC power from one voltage level to another."
     dc(branch)              "A HVDC branch is a controllable link between two nodes"
@@ -80,13 +80,13 @@ set
     energy_sourceuse(gen)            "Generators that can use energy_source use constraints"
     hydro(gen)              "Hydro generators can be complicated and I am not doing anything with them currently"
     battery(gen)            "Batteries can be charged, discharged, and have a state of charge"
-    load                    "Loads connect to a bus and represent a fixed demand on the system" 
+    load                    "Loads connect to a bus and represent a fixed demand on the system"
     sub_network             "Sub-networks are subsets of buses and passive branches (i.e. lines and transformers) that are connected. as a synchronous grid"
 
 *   Gen Info
     prime_mover             "Prime mover according to EIA"
     technology              "Technology according to EIA"
-    energy_source           "Energy source according to EIA"            
+    energy_source           "Energy source according to EIA"
 
 *   Fuel Information
     fuel                    "Fuel source we have prices for"
@@ -110,15 +110,15 @@ operational(gen)$(wind(gen) or solar(gen))=No;
 *** Mappings ***
 ****************
 
-set 
+set
 *   Sub networks of synchronized grids
     bus_sub_network(bus,sub_network)    "Map bus to sub network"
 
 *   Nodal Locations
-    load_bus(load,bus)          "Map load to bus" 
+    load_bus(load,bus)          "Map load to bus"
     gen_bus(gen,bus)            "Map generatpr to bus"
-    branch_bus0(branch,bus)     "Map branch to bus0" 
-    branch_bus1(branch,bus)     "Map branch to bus1" 
+    branch_bus0(branch,bus)     "Map branch to bus0"
+    branch_bus1(branch,bus)     "Map branch to bus1"
 
 *   Gen Info
     gen_energy_source(gen,energy_source) "Generator energy source for power"
@@ -152,7 +152,7 @@ set anc_type                    "Ancillary service types" /reg_up,reg_down,res_s
 
 alias (anc_type, anc_type2);
 
-set anc_type_contrib(anc_type,anc_type2) "Ancillary contribution denotes which type of ancillaries contribute to teh requirements" 
+set anc_type_contrib(anc_type,anc_type2) "Ancillary contribution denotes which type of ancillaries contribute to teh requirements"
     /
         reg_up.reg_up
         reg_down.reg_down
@@ -488,7 +488,7 @@ total_solar(time)=sum(solar,p_max_pu_t(time,solar));
 *** Branches ***
 ****************
 
-parameters 
+parameters
     s_nom(branch)       "Nominal capacity of branch"
     x_pu_eff(branch)    "Reactance x per unit (s_nom) effective"
     r_pu_eff(branch)    "Resistance r per unit (s_nom) effective"
@@ -560,7 +560,7 @@ flow_violation_cost=%flow_violation%;
 
 ***************
 *** Forward ***
-*************** 
+***************
 
 * Override forward information
 
