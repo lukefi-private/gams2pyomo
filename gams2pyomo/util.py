@@ -1,15 +1,33 @@
 def sequence_set(idx1, idx2):
+    """
+    Generate a set as a sequence from idx1 to idx2.
+    """
+
+    # when index is int, directly return a range
     if isinstance(idx1, int):
         return list(range(idx1, idx2 + 1))
+
+    # get the string prefix to see if it is string + int or pure string
     prefix = ''
     for i, c in enumerate(idx1):
         try:
-            int(idx1[i:])
-            prefix = idx1[:i]
+            prefix = idx1[:i + 1]
+            int(idx1[i + 1:])
             break
         except ValueError:
             pass
 
+    # pure string, e.g., a * i
+    if prefix == idx1:
+        char = idx1
+        res = []
+        while char != idx2:
+            res.append(char)
+            char = chr(ord(char) + 1)
+        res.append(idx2)
+        return res
+
+    # string + int, e.g., a1 * a10
     try:
         n1 = int(idx1.split(prefix)[1])
         n2 = int(idx2.split(prefix)[1])

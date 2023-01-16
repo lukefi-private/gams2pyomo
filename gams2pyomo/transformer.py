@@ -4,8 +4,8 @@ import logging
 from .components import *
 from .util import sequence_set
 
-logger = logging.getLogger('gams_parser.model')
-logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('gams_translator.transformer')
+logging.basicConfig(level=logging.WARNING)
 
 HEADING_1 = \
 r"""from pyomo.environ import *
@@ -31,6 +31,7 @@ class GAMSTransformer(Transformer):
 
     comments = ''
     _with_head = True
+    f_name = ''
 
     def import_comments(self, comments):
         """
@@ -63,6 +64,9 @@ class GAMSTransformer(Transformer):
             return res
         else:
             raise NotImplementedError
+
+    def import_f_name(self, f_name):
+            self.f_name = f_name
 
     def start(self, children, meta):
         """
@@ -121,13 +125,24 @@ class GAMSTransformer(Transformer):
                 comment = self.comments.pop(0)[1]
                 res += '# ' + comment + '\n'
 
-        # add heading
+        # add default heading code
         if self._with_head:
             if 'model_title' in globals():
                 global model_title
                 res = HEADING_1 + f"name={model_title}" + HEADING_2 + res
             else:
                 res = HEADING_1 + HEADING_2 + res
+
+        # add header
+        header = "# " + "-" * 15 + " THIS SCRIPT WAS AUTO-GENERATED FROM GAMS2PYOMO " + "-" * 15 + "\n"
+        l = len(self.f_name)
+        if l > 0:
+            total_l = 19 + l
+            left_l = (80 - total_l) // 2
+            right_l = (80 - total_l) - left_l
+            header += "# " + "-" * left_l + f" FILE SOURCE: '{self.f_name}' " + "-" * right_l + "\n\n"
+
+        res = header + res
 
         return res
 
@@ -311,6 +326,8 @@ class GAMSTransformer(Transformer):
 
     def data(self, children, _):
         if isinstance(children, list):
+            if isinstance(children[0], list) and len(children) == 1:
+                return children[0]
             return children
         if len(children) == 1:
             return children[0]
@@ -380,6 +397,11 @@ class GAMSTransformer(Transformer):
     def index_list(self, children, _):
 
         res = []
+
+        # avoid nested list from certain scenarios
+        if len(children) == 1 and isinstance(children[0], list):
+            return children[0]
+
         for c in children:
             if isinstance(c, str) or isinstance(c, int):
                 res.append(c)
@@ -392,6 +414,8 @@ class GAMSTransformer(Transformer):
     def index_item(self, children, _):
         c = children[0]
         if isinstance(c, (str, int)):
+            return c
+        elif isinstance(c, Token) and c.value == '*':
             return c
         else:
             raise NotImplementedError
@@ -517,6 +541,7 @@ class GAMSTransformer(Transformer):
                 data[idx_i, idx_j] = c
             _counter = (_counter + 1) % (len_j + 1)
 
+        # logger.warn(data)
         return data
 
     def macro(self, children, meta):
