@@ -4,7 +4,7 @@ from lark.tree import Meta
 import logging
 from .util import find_alias
 
-logger = logging.getLogger('gams_parser.model')
+logger = logging.getLogger('gams_translator.components')
 logging.basicConfig(level=logging.WARNING)
 
 _PREFIX = 'm.'
@@ -54,6 +54,9 @@ class ComponentContainer(object):
             self.symbols[component.type].append(component.symbol.name)
         else:
             raise NotImplementedError
+
+    def add_option(self, option_name, value):
+        self.options[option_name] = value
 
     @property
     def set(self):
@@ -328,7 +331,22 @@ class SolveStatement():
         res = f'm._obj_ = Objective(rule={_PREFIX + self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
 
         # assign solver via model type
-        res += f"opt = SolverFactory(options['{self.type.lower()}'])" + _NL
+        if self.type.lower() in container.options:
+            res += f"opt = SolverFactory('{container.options[self.type.lower()]}')" + _NL
+        else:
+            _default_solvers = {
+                'lp': 'gurobi',
+                'mip': 'gurobi',
+                'nlp': 'ipopt',
+                'cns': 'ipopt',
+                'dnlp': 'ipopt',
+                'minlp': 'baron',
+                'qcp': 'ipopt',
+                'miqcp': 'gurobi',
+                'global': 'baron',
+                # 'mcp', 'mpec', 'Stoch.'
+            }
+            res += f"opt = SolverFactory('{_default_solvers[self.type.lower()]}')" + _NL
         # solve
         res += f'opt.solve(m, tee=True)' + _NL
         return res
@@ -599,10 +617,19 @@ class Definition():
 
         # add index
         if hasattr(self.symbol, 'index_list') and self.symbol.index_list:
-            for _idx in self.symbol.index_list:
-                res += _PREFIX + f"{_idx.upper()}, "
+            for i, _idx in enumerate(self.symbol.index_list):
+                if _idx == '*':
+                    _tmp_list = []
+                    for k in data:
+                        if k[i] not in _tmp_list:
+                            _tmp_list.append(k[i])
+                    res += f"{_tmp_list}, "
+                else:
+                    res += _PREFIX + f"{_idx.upper()}, "
+
         # make all parameters mutable to handle potential update later
         res += "mutable=True"
+
         # data
         if data:
             # when scalar is declared as parameter
@@ -882,12 +909,16 @@ class Option():
         if self.name in _irrelevant_options:
             return ''
 
-        if isinstance(self.value, str):
-            # add quote to mark it as string
-            v_string = f"'{self.value}'"
-        else:
-            v_string = f"{self.value}"
-        return f"options['{self.name}'] = {v_string}" + _NL
+        container.add_option(self.name, self.value)
+
+        return ''
+
+        # if isinstance(self.value, str):
+        #     # add quote to mark it as string
+        #     v_string = f"'{self.value}'"
+        # else:
+        #     v_string = f"{self.value}"
+        # return f"options['{self.name}'] = {v_string}" + _NL
 
 
 class SpecialIndex():

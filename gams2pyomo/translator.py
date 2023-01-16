@@ -5,6 +5,7 @@ from .transformer import GAMSTransformer
 import logging
 
 logger = logging.getLogger('gams_translator')
+logging.basicConfig(level=logging.WARNING)
 
 dirname = os.path.dirname(__file__)
 grammar = os.path.join(dirname, 'gams.lark')
@@ -25,6 +26,12 @@ class GAMSTranslator():
             self.file = file
 
         self.text = self.file.read()
+
+        # store the file name
+        if isinstance(file, str):
+            self.f_name = file.split('/')[-1]
+        else:
+            self.f_name = ''
 
         self.preprocess()
 
@@ -96,5 +103,7 @@ class GAMSTranslator():
         parse_tree = lark_gams.parse(self.text)
         transformer = GAMSTransformer()
         transformer.import_comments(comments)
+        transformer.import_f_name(self.f_name)
+
         res = transformer.transform(parse_tree)
         return res

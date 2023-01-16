@@ -134,7 +134,7 @@ rhs: expression
 
 // ============================== BASIC ELEMENTS ===============================
 
-value 			: SIGNED_NUMBER
+value.2 		: SIGNED_NUMBER
 string			: WORD
 description		: FLEX_ESCAPED_STRING
 
@@ -202,13 +202,14 @@ conditional: "$" expression
 symbol 			: symbol_name[suffix][symbol_index]
 symbol_index	: _LPAR index_list _RPAR
 index_list		: index_item (_COMMA index_item )*
-index_item		: symbol_name
+!index_item		: symbol_name
 				| symbol_element
 				| compiler_variable
 				| symbol_name "++" value -> circular_lead
 				| symbol_name "--" value -> circular_lag
 				| symbol_name "+" value -> lead
 				| symbol_name "-" value -> lag
+				| "*"
 symbol_range    : identifier "*" identifier
 symbol_id 		: identifier ("." identifier)*
 symbol_element  : _QUOTE identifier _QUOTE
