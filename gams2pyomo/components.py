@@ -1,11 +1,11 @@
+import logging
 from typing import List
 from lark import Tree
-from lark.tree import Meta
-import logging
 from .util import find_alias
 
+logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
 logger = logging.getLogger('gams_translator.components')
-logging.basicConfig(level=logging.WARNING)
+logger.setLevel(logging.INFO)
 
 _PREFIX = 'm.'
 _NL = '\n'
@@ -20,8 +20,12 @@ class ComponentContainer(object):
         assignments (list): The assignment statements.
         model_defs (list): The optimization definitions.
         solve (list): The solve statements.
+        options (dict): The options.
+        if_statement (list): The if statements.
+        loop_statement (list): The loop statements.
+        abort_statement (list): The abort statements.
+        display_statement (list): The display statements.
     """
-    symbols = {}
 
     def __init__(self):
         self.symbols = {
@@ -52,6 +56,8 @@ class ComponentContainer(object):
 
         if isinstance(component, Definition):
             self.symbols[component.type].append(component.symbol.name)
+        elif isinstance(component, ModelDefinition):
+            self.model_defs.append(component.name)
         else:
             raise NotImplementedError
 
@@ -283,9 +289,12 @@ class ModelDefinition():
     file can define multiple optimization models.
     """
 
-    def __init__(self, name, equations, meta):
+    def __init__(self, name, equations, description, meta):
 
         self.name = name
+
+        if description:
+            self.description = description
 
         if len(equations) == 1 and isinstance(equations[0], str) and equations[0].lower() == 'all':
             self.all_equation = True
@@ -293,20 +302,26 @@ class ModelDefinition():
         else:
             self.all_equation = False
             self.equations = equations
-            raise NotImplementedError
 
         self.lines = (meta.line, meta.end_line)
 
-    def __repr__(self):
-        return "<model={} eqn={}>".format(self.name, ",".join([str(e) for e in self.equations]))
+    # def __repr__(self):
+    #     return "<model={} eqn={}>".format(self.name, ",".join([str(e) for e in self.equations]))
 
     def assemble(self, container: ComponentContainer, _indent='', **kwargs):
 
         # no need to do anything
         if self.all_equation:
-            return ''
+            return f'm_{self.name} = m.clone()' + _NL
         else:
-            raise NotImplementedError
+            m_name = f'm_{self.name}'
+            # clone the original model
+            res = f'{m_name} = m.clone()' + _NL
+            # iterate through declared equations
+            for eq in container.equation:
+                if eq not in self.equations:
+                    res += f"{m_name}.del_component('{eq}')" + _NL
+            return res
 
 
 class SolveStatement():
@@ -327,8 +342,8 @@ class SolveStatement():
         }
 
         # declare objective
-        # NOTE what if _obj_ is used
-        res = f'm._obj_ = Objective(rule={_PREFIX + self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
+        # TODO: what if _obj_ is used
+        res = f'm_{self.name}._obj_ = Objective(rule={_PREFIX + self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
 
         # assign solver via model type
         if self.type.lower() in container.options:
@@ -347,8 +362,14 @@ class SolveStatement():
                 # 'mcp', 'mpec', 'Stoch.'
             }
             res += f"opt = SolverFactory('{_default_solvers[self.type.lower()]}')" + _NL
+
         # solve
-        res += f'opt.solve(m, tee=True)' + _NL
+        res += f'opt.solve(m_{self.name}, tee=True)' + _NL
+
+        # update global variable
+        global last_solved_model
+        last_solved_model = self.name
+
         return res
 
 
@@ -844,7 +865,6 @@ class AbortStatement():
     def assemble(self, container: ComponentContainer, _indent='', **kwargs):
         res = ''
         for d in self.descriptions:
-            # res += _indent + f"print('{d}')" + _NL
             res += _indent + f"raise ValueError('{d}')" + _NL
         return res
 
@@ -869,6 +889,11 @@ class Display():
     def assemble(self, container: ComponentContainer, _indent='', **kwargs):
         res = ''
 
+        prefix = _PREFIX
+        if 'last_solved_model' in globals():
+            global last_solved_model
+            prefix = 'm_' + last_solved_model + '.'
+
         _tmp_res = []
         for symbol in self.symbols:
 
@@ -878,12 +903,12 @@ class Display():
                 # activity level
                 if symbol.suffix == 'l':
                     _res = symbol.name
-                    _res = _PREFIX + _res + '.pprint()' + _NL
+                    _res = prefix + _res + '.pprint()' + _NL
                 else:
                     logger.warn(f"Not supported suffix type for display: '.{symbol.suffix}'")
                     continue
             else:
-                _res = symbol.assemble(container, _indent)
+                _res = symbol.assemble(container, _indent) + '.pprint()' + _NL
 
             _tmp_res.append(_res)
 

@@ -1,3 +1,5 @@
+NUMBER = '0123456789'
+
 def sequence_set(idx1, idx2):
     """
     Generate a set as a sequence from idx1 to idx2.
@@ -10,12 +12,10 @@ def sequence_set(idx1, idx2):
     # get the string prefix to see if it is string + int or pure string
     prefix = ''
     for i, c in enumerate(idx1):
-        try:
-            prefix = idx1[:i + 1]
-            int(idx1[i + 1:])
+        prefix = idx1[:i + 1]
+        left = idx1[i + 1:]
+        if all([c in NUMBER for c in left]):
             break
-        except ValueError:
-            pass
 
     # pure string, e.g., a * i
     if prefix == idx1:
@@ -53,7 +53,7 @@ def find_alias(idx, container):
     # a specific index in the set, return itself
     return idx
 
-def change_case(str):
-    # change str to snake case
+def change_case(string):
+    """Change string format into snake case."""
 
-    return ''.join(['_'+i.lower() if i.isupper() else i for i in str]).lstrip('_')
+    return ''.join(['_'+i.lower() if i.isupper() else i for i in string]).lstrip('_')

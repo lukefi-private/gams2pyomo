@@ -1,11 +1,12 @@
 from typing import List
-from lark import Transformer, Tree, Token, v_args
 import logging
+from lark import Transformer, Tree, Token, v_args
 from .components import *
 from .util import sequence_set
 
+logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
 logger = logging.getLogger('gams_translator.transformer')
-logging.basicConfig(level=logging.WARNING)
+logger.setLevel(logging.WARNING)
 
 HEADING_1 = \
 r"""from pyomo.environ import *
@@ -28,50 +29,22 @@ _ARITHMETIC_TYPES = (Symbol, int, float, UnaryExpression,
 
 @v_args(meta=True)
 class GAMSTransformer(Transformer):
+    """
+    The transformer class that transforms a Lark tree into Python/Pyomo code.
+    """
 
     comments = ''
     _with_head = True
     f_name = ''
 
-    def import_comments(self, comments):
-        """
-
-        Add comments reserved from preprocessing.
-
-        Args:
-            comments (list): The list of tuples (line number, comment).
-        """
-
-        self.comments = comments
-
-    def insert_comment(self, statement):
-
-        res = ''
-
-        # iterate through definition list
-        if isinstance(statement, list):
-            for s in statement:
-                res += self.insert_comment(s)
-            return res
-        elif isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
-            return res
-        elif type(statement) in _STATEMENT_TYPES:
-            # check if the line number of the first unprocessed comments is
-            # smaller than the end line of the statement
-            while self.comments and self.comments[0][0] < statement.lines[1]:
-                comment = self.comments.pop(0)[1]
-                res += '# ' + comment + '\n'
-            return res
-        else:
-            raise NotImplementedError
-
-    def import_f_name(self, f_name):
-            self.f_name = f_name
+    # root node transforming ---------------------------------------------------
 
     def start(self, children, meta):
         """
         Assemble the result string at the root node.
         """
+
+        logger.info("Transforming at the root node...")
 
         # create a container to check sets, etc.
         container = ComponentContainer()
@@ -79,29 +52,25 @@ class GAMSTransformer(Transformer):
         res = ''
 
         # assemble each statement
-        for c in children:
-
-            # print(type(c))
-            # if isinstance(c, list):
-            #     print('\t', type(c[0]))
+        for statement in children:
 
             # insert comments before the statements
-            res += self.insert_comment(c)
+            res += self.insert_comment(statement)
 
             # record alias
-            if isinstance(c, Alias):
-                container.add_alias(c.aliases)
+            if isinstance(statement, Alias):
+                container.add_alias(statement.aliases)
 
             # non-definition statements
-            if isinstance(c, _NON_DEF_STATEMENT_TYPES):
-                res += c.assemble(container)
+            if isinstance(statement, _NON_DEF_STATEMENT_TYPES):
+                res += statement.assemble(container)
 
             # definition lists
-            elif isinstance(c, list):
+            elif isinstance(statement, list):
 
                 # go through each definition
-                for _c in c:
-                    if isinstance(_c, Definition):
+                for _c in statement:
+                    if isinstance(_c, (Definition, ModelDefinition)):
                         res += _c.assemble(container)
 
                         # record symbols
@@ -111,13 +80,13 @@ class GAMSTransformer(Transformer):
                             f"failed to assemble type {type(_c)} in the definition list at root node.")
 
             # comment block
-            elif isinstance(c, Token) and c.type == 'COMMENT_BLOCK':
+            elif isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
                 # `[8:-8]`: remove `$ontext\n` and `$offtext`
-                comment_block = c.value[8:-8]
+                comment_block = statement.value[8:-8]
                 res += f'\n"""{comment_block}"""\n\n'
 
             else:
-                raise NotImplementedError(f"failed to assemble type {type(c)} (not in the definition list) at root node.")
+                raise NotImplementedError(f"failed to assemble type {type(statement)} (not in the definition list) at root node.")
 
         # check if there are comments at the end
         if self.comments:
@@ -134,15 +103,18 @@ class GAMSTransformer(Transformer):
                 res = HEADING_1 + HEADING_2 + res
 
         # add header
-        header = "# " + "-" * 15 + " THIS SCRIPT WAS AUTO-GENERATED FROM GAMS2PYOMO " + "-" * 15 + "\n"
-        l = len(self.f_name)
-        if l > 0:
-            total_l = 19 + l
+        header = "# " + "-" * 15 + \
+            " THIS SCRIPT WAS AUTO-GENERATED FROM GAMS2PYOMO " + "-" * 15 + "\n"
+        length = len(self.f_name)
+        if length > 0:
+            total_l = 19 + length
             left_l = (80 - total_l) // 2
             right_l = (80 - total_l) - left_l
-            header += "# " + "-" * left_l + f" FILE SOURCE: '{self.f_name}' " + "-" * right_l + "\n\n"
-
+            header += "# " + "-" * left_l + \
+                f" FILE SOURCE: '{self.f_name}' " + "-" * right_l + "\n\n"
         res = header + res
+
+        logger.info("Done.")
 
         return res
 
@@ -159,10 +131,20 @@ class GAMSTransformer(Transformer):
             value = value.lower()
         return Option(name, value, meta)
 
-    def model_definition(self, children, meta):
+    def model_definition(self, children, _):
+        # return one or more `single_model_definition`
+        return children
+
+    def single_model_definition(self, children, meta):
         name = children[0]
-        equations = children[1:]
-        return ModelDefinition(name, equations, meta)
+        description = None
+        equations = []
+        for c in children[1:]:
+            if isinstance(c, Tree) and c.data == 'model_description':
+                description = c.children[0]
+            else:
+                equations.append(c)
+        return ModelDefinition(name, equations, description, meta)
 
     def solve_statement(self, children, meta):
         name = children[0]
@@ -541,7 +523,6 @@ class GAMSTransformer(Transformer):
                 data[idx_i, idx_j] = c
             _counter = (_counter + 1) % (len_j + 1)
 
-        # logger.warn(data)
         return data
 
     def macro(self, children, meta):
@@ -586,3 +567,51 @@ class GAMSTransformer(Transformer):
 
     def compiler_variable(self, children, _):
         raise NotImplementedError
+
+    # helper methods -----------------------------------------------------------
+
+    def import_comments(self, comments):
+        """
+
+        Add comments reserved from preprocessing.
+
+        Args:
+            comments (list): The list of tuples (line number, comment).
+        """
+
+        self.comments = comments
+
+    def insert_comment(self, statement):
+        """
+        Insert the comment before the statement.
+        """
+
+        res = ''
+
+        # definition list
+        if isinstance(statement, list):
+            for _s in statement:
+                # recursive call
+                res += self.insert_comment(_s)
+            return res
+
+        # comment block, skip
+        if isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
+            return res
+
+        # other statement types
+        if type(statement) in _STATEMENT_TYPES:
+            # check if the line number of the first unprocessed comments is
+            # smaller than the end line of the statement
+            while self.comments and self.comments[0][0] < statement.lines[1]:
+                comment = self.comments.pop(0)[1]
+                res += '# ' + comment + '\n'
+            return res
+
+        raise NotImplementedError
+
+    def import_f_name(self, f_name):
+        """
+        Import file name.
+        """
+        self.f_name = f_name
