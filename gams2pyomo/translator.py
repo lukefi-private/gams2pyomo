@@ -6,7 +6,7 @@ for major interactions.
 import logging
 import logging.config
 import os
-from lark import Lark
+from lark import Lark, UnexpectedCharacters
 from .transformer import GAMSTransformer
 
 logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
@@ -116,7 +116,11 @@ class GAMSTranslator():
         """
 
         logger.info("Parsing the text...")
-        res = lark_gams.parse(self.text)
+        try:
+            res = lark_gams.parse(self.text)
+        except UnexpectedCharacters as e:
+            logger.error("An error occurred during the parsing step. Program terminates.")
+            raise e
         logger.info("Done.")
         return res
 

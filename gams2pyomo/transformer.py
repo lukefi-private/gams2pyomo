@@ -61,32 +61,45 @@ class GAMSTransformer(Transformer):
             if isinstance(statement, Alias):
                 container.add_alias(statement.aliases)
 
-            # non-definition statements
-            if isinstance(statement, _NON_DEF_STATEMENT_TYPES):
-                res += statement.assemble(container)
+            # assemble each statement
+            try:
+                # non-definition statements
+                if isinstance(statement, _NON_DEF_STATEMENT_TYPES):
+                    res += statement.assemble(container)
 
-            # definition lists
-            elif isinstance(statement, list):
+                # definition lists
+                elif isinstance(statement, list):
 
-                # go through each definition
-                for _c in statement:
-                    if isinstance(_c, (Definition, ModelDefinition)):
-                        res += _c.assemble(container)
+                    # go through each definition
+                    for _c in statement:
+                        if isinstance(_c, (Definition, ModelDefinition)):
+                            res += _c.assemble(container)
 
-                        # record symbols
-                        container.add_symbol(_c)
+                            # record symbols
+                            container.add_symbol(_c)
+                        else:
+                            raise NotImplementedError(f"failed to assemble type {type(_c)} in the definition list at root node.")
+
+                # comment block
+                elif isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
+                    # `[8:-8]`: remove `$ontext\n` and `$offtext`
+                    comment_block = statement.value[8:-8]
+                    res += f'\n"""{comment_block}"""\n\n'
+
+                else:
+                    raise NotImplementedError(f"failed to assemble type {type(statement)} at root node.")
+            except Exception as e:
+                error_msg = "The statement cannot be translated into Pyomo. It is skipped in the generated code.\n"
+                if hasattr(statement, 'lines'):
+                    if statement.lines[0] == statement.lines[1]:
+                        loc = f"line {statement.lines[0]}"
                     else:
-                        raise NotImplementedError(
-                            f"failed to assemble type {type(_c)} in the definition list at root node.")
-
-            # comment block
-            elif isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
-                # `[8:-8]`: remove `$ontext\n` and `$offtext`
-                comment_block = statement.value[8:-8]
-                res += f'\n"""{comment_block}"""\n\n'
-
-            else:
-                raise NotImplementedError(f"failed to assemble type {type(statement)} (not in the definition list) at root node.")
+                        loc = f"lines {statement.lines[0]}-{statement.lines[1]}"
+                    error_msg += f"statement location: {loc}.\n"
+                error_msg += f"An exception of type {type(e).__name__} occurred."
+                if e.args:
+                    error_msg += f"Arguments: {e.args!r}\n"
+                logger.error(error_msg)
 
         # check if there are comments at the end
         if self.comments:
