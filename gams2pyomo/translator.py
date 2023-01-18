@@ -1,17 +1,22 @@
+"""
+This is the main translator module. It defines the main GAMSTranslator class
+for major interactions.
+"""
 
-from lark import Lark
-import os
-from .transformer import GAMSTransformer
 import logging
+import logging.config
+import os
+from lark import Lark
+from .transformer import GAMSTransformer
 
+logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
 logger = logging.getLogger('gams_translator')
-logging.basicConfig(level=logging.WARNING)
+logger.setLevel(logging.WARNING)
 
-dirname = os.path.dirname(__file__)
-grammar = os.path.join(dirname, 'gams.lark')
+grammar = os.path.join(os.path.dirname(__file__), 'gams.lark')
 
 
-with open(grammar, 'r') as in_file:
+with open(grammar, 'r', encoding="utf8") as in_file:
     text = in_file.read()
     lark_gams = Lark(text, propagate_positions=True)
 
@@ -21,7 +26,7 @@ class GAMSTranslator():
     def __init__(self, file):
 
         if isinstance(file, str):
-            self.file = open(file, 'r')
+            self.file = open(file, 'r', encoding="utf8")
         else:
             self.file = file
 
@@ -33,12 +38,14 @@ class GAMSTranslator():
         else:
             self.f_name = ''
 
-        self.preprocess()
+        self._preprocess()
 
-    def preprocess(self):
+    def _preprocess(self):
         """
         Preprocess the text.
         """
+
+        logger.info("Preprocessing the text...")
 
         lines = self.text.split('\n')
 
@@ -48,7 +55,9 @@ class GAMSTranslator():
 
         self.text = '\n'.join(lines)
 
-    def parse_comments(self, parse_comment=False):
+        logger.info("Done.")
+
+    def parse_comments(self, translate_comment=False):
         """
         Parse the single-line comments prior to the main parsing step.
 
@@ -57,24 +66,27 @@ class GAMSTranslator():
         The ones in the comment blocks are neglected as those will be parsed.
         """
 
+        logger.info("Parsing comments...")
+
         lines = self.text.split('\n')
 
         comments = []
 
         comment_block = False
-        for i, l in enumerate(lines):
+        for i, line in enumerate(lines):
 
-            if len(l) >= 7 and '$ontext' in l.lower():
+            if len(line) >= 7 and '$ontext' in line.lower():
                 comment_block = True
-            if len(l) >= 8 and '$offtext' in l.lower():
+            if len(line) >= 8 and '$offtext' in line.lower():
                 comment_block = False
 
-            if not comment_block and len(l) > 0 and l[0] == '*':
+            if not comment_block and len(line) > 0 and line[0] == '*':
                 # store line number and comment contents
-                comments.append((i, l[1:]))
+                comments.append((i, line[1:]))
 
         # try to parse the comments in case they are executable
-        if parse_comment:
+        if translate_comment:
+            logger.info("Potential code in comment will be translated.")
 
             _transformer = GAMSTransformer()
             _transformer._with_head = False
@@ -91,19 +103,47 @@ class GAMSTranslator():
                     new_comments.append(comment)
             comments = new_comments
 
+        logger.info("Done.")
+
         return comments
 
     def parse(self):
-        return lark_gams.parse(self.text)
+        """
+        Parse the GAMS code.
 
-    def transform(self):
+        Returns:
+            Tree: the resulting Lark Tree.
+        """
 
-        comments = self.parse_comments(parse_comment=True)
+        logger.info("Parsing the text...")
+        res = lark_gams.parse(self.text)
+        logger.info("Done.")
+        return res
 
+    def translate(self, translate_comment=True):
+        """Translate the GAMS code into Python-Pyomo code.
+
+        Args:
+            parse_comment (bool, optional): _description_. Defaults to True.
+
+        Returns:
+            _type_: _description_
+        """
+
+        logger.info("Translating the GAMS code...")
+
+        # extract comments
+        comments = self.parse_comments(translate_comment=translate_comment)
+
+        # parse into tree
         parse_tree = lark_gams.parse(self.text)
+
         transformer = GAMSTransformer()
         transformer.import_comments(comments)
         transformer.import_f_name(self.f_name)
-
+        # transform
         res = transformer.transform(parse_tree)
+
+        logger.info("Done.")
+
         return res

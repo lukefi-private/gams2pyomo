@@ -103,7 +103,9 @@ display: _DISPLAY symbol ([_COMMA] symbol )* _END
 
 // ----------------------------- model definition ------------------------------
 
-model_definition: _MODEL string "/" symbol_name+ "/" _END
+model_definition: _MODEL single_model_definition+ _END
+single_model_definition: string [model_description] "/" symbol_name ("," symbol_name)* "/"
+model_description: description
 
 
 // ----------------------------- solve definition ------------------------------
@@ -229,7 +231,7 @@ suffix			: _DOT string
 _SET: ("set" ["s"]) | ("Set" ["s"]) | ("SET" ["S"])
 _PARAMETER: ("parameter" ["s"]) | ("Parameter" ["s"]) | ("PARAMETER" ["S"])
 _TABLE: "table" | "Table" | "TABLE"
-_VARIABLE: ("variable" ["s"]) | ("Variable" ["s"]) | ("VARIABLE" ["S"])
+_VARIABLE: ["free " | "Free " | "FREE "] (("variable" ["s"]) | ("Variable" ["s"]) | ("VARIABLE" ["S"]))
 _PVARIABLE: ("positive variable" ["s"]) | ("Positive variable" ["s"]) | ("Positive Variable" ["s"]) | ("POSITIVE VARIABLE" ["S"])
 _BVARIABLE: ("binary variable" ["s"]) | ("Binary variable" ["s"]) | ("Binary Variable" ["s"]) | ("BINARY VARIABLE" ["S"])
 _EQUATION: ("equation" ["s"]) | ("Equation" ["s"]) | ("EQUATION" ["S"])
