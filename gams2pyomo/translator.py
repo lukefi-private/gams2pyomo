@@ -18,7 +18,7 @@ grammar = os.path.join(os.path.dirname(__file__), 'gams.lark')
 
 with open(grammar, 'r', encoding="utf8") as in_file:
     text = in_file.read()
-    lark_gams = Lark(text, propagate_positions=True)
+    lark_gams = Lark(text, propagate_positions=True, maybe_placeholders=False)
 
 
 class GAMSTranslator():
