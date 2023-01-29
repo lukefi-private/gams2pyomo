@@ -2,31 +2,29 @@
 
 start: statement+
 
-?statement: [macro_conditional] (symbol_definition
-								| COMMENT_BLOCK
-								| macro
-								| execute
-								| display
-								| assignment
-								| eq_definition
-								| model_definition
-								| solve_statement
-								| option
-								| if_statement
-								| loop_statement
-								| abort_statement )
+?statement: [macro_conditional] ( declare_statement | execution_statement
+								| COMMENT_BLOCK )
+
+?declare_statement:   symbol_definition
+					| eq_definition
+					| model_definition
+					| acronym_def
+					| file_st
+					| func_import
+
+?execution_statement: macro
+					| execute
+					| display
+					| assignment
+					| solve_statement
+					| option
+					| if_statement
+					| loop_statement
+					| abort_statement
+					| break
 
 
-// ================================ STATEMENTS =================================
-
-// ------------------------------------ $if ------------------------------------
-// conditional compilation
-// https://www.gams.com/latest/docs/UG_DollarControlOptions.html#DOLLARif
-
-macro_conditional: _DOLLARIF negate? macro_condition
-macro_condition: _M_SET string -> env_test
-				| expression
-
+// ===================== DECLARATION/DEFINITION STATEMENTS =====================
 
 // ----------------------------- symbol definition -----------------------------
 
@@ -39,6 +37,49 @@ symbol_definition: _SET 		definition+ 			_END -> set_list
 				| _EQUATION 	definition+ 			_END -> equation_list
 				| _TABLE 		table_definition 		_END -> table
 				| _ALIAS 		_LPAR index_list _RPAR 	_END -> alias_list
+
+
+// ---------------------------- equation definition ----------------------------
+
+eq_definition: symbol [conditional] ".." lhs equation_types rhs _END
+lhs: expression
+rhs: expression
+
+
+// ----------------------------- model definition ------------------------------
+
+model_definition: _MODEL single_model_definition+ _END
+single_model_definition: string [model_description] "/" symbol_name ("," symbol_name)* "/"
+model_description: description
+
+
+// ------------------------------------ function import ------------------------------------
+
+func_import: _FUNCTION (internal_func_name _SLASH internal_lib_name _DOT func_name _SLASH)+ _END
+internal_func_name: string
+internal_lib_name: string
+func_name: string
+
+
+// ------------------------------------ file statement ------------------------------------
+
+file_st: _FILE filename [description] [_SLASH (filename | "''") _SLASH] ([_COMMA] filename [description] [_SLASH (filename | "''") _SLASH])* _END
+
+
+// ------------------------------------ acronym ------------------------------------
+
+acronym_def: _ACRONYM identifier (_COMMA identifier)* _END
+
+
+// =========================== EXECUTION STATEMENTS ============================
+
+// ------------------------------------ $if ------------------------------------
+// conditional compilation
+// https://www.gams.com/latest/docs/UG_DollarControlOptions.html#DOLLARif
+
+macro_conditional: _DOLLARIF negate? macro_condition
+macro_condition: _M_SET string -> env_test
+				| expression
 
 
 // ------------------------------- if statement --------------------------------
@@ -82,7 +123,7 @@ execute: execute_unload _END
 
 execute_unload: _EXECUTE_UNLOAD _QUOTE filename _QUOTE symbol+
 
-filename: (string | compiler_variable | "/")+ ["." extension]
+filename: (string | compiler_variable | _SLASH) [_DOT extension]
 quoted_string: /['"]/ string /['"]/
 compiler_variable: "%" string "%"
 extension: string
@@ -101,14 +142,8 @@ _M_SET: "set"
 display: _DISPLAY symbol ([_COMMA] symbol )* _END
 
 
-// ----------------------------- model definition ------------------------------
 
-model_definition: _MODEL single_model_definition+ _END
-single_model_definition: string [model_description] "/" symbol_name ("," symbol_name)* "/"
-model_description: description
-
-
-// ----------------------------- solve definition ------------------------------
+// ------------------------------ solve statement ------------------------------
 
 solve_statement: _SOLVE string ( "using" model_type sense symbol_name | sense symbol_name "using" model_type) _END
 model_type: string
@@ -125,13 +160,6 @@ assignment: symbol [conditional] "=" expression _END
 option: _OPTION option_name "=" option_value _END
 ?option_name: identifier
 ?option_value: SIGNED_NUMBER | WORD
-
-
-// ---------------------------- equation definition ----------------------------
-
-eq_definition: symbol [conditional] ".." lhs equation_types rhs _END
-lhs: expression
-rhs: expression
 
 
 // ============================== BASIC ELEMENTS ===============================
@@ -248,6 +276,9 @@ _DOLLAR: "$"
 _LOOP: "loop" | "Loop" | "LOOP"
 _ABORT: "abort" | "Abort" | "ABORT"
 _DISPLAY: "display" | "Display" | "DISPLAY"
+_ACRONYM: ("Acronym" ["s"]) | ("acronym" ["s"]) | ("ACRONYM" ["S"])
+_FILE: ("File" ["s"]) | ("file" ["s"]) | ("FILE" ["S"])
+_FUNCTION: "function" | "Function" | "FUNCTION"
 
 
 // -------------------------------- punctuation --------------------------------
