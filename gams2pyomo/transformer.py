@@ -144,11 +144,11 @@ class GAMSTransformer(Transformer):
             value = value.lower()
         return Option(name, value, meta)
 
-    def model_definition(self, meta, children):
-        # return one or more `single_model_definition`
+    def model_def(self, meta, children):
+        # return one or more `single_model_def`
         return children
 
-    def single_model_definition(self, meta, children):
+    def single_model_def(self, meta, children):
         name = children[0]
         description = None
         equations = []
@@ -159,7 +159,7 @@ class GAMSTransformer(Transformer):
                 equations.append(c)
         return ModelDefinition(name, equations, description, meta)
 
-    def solve_statement(self, meta, children):
+    def solve_st(self, meta, children):
         name = children[0]
         for c in children[1:]:
             if isinstance(c, Tree) and c.data == 'sense':
@@ -245,26 +245,26 @@ class GAMSTransformer(Transformer):
         # list)
         return Alias(children[0], meta)
 
-    def if_statement(self, meta, children):
+    def if_st(self, meta, children):
 
         condition = children[0]
 
         statement = []
-        elif_statement = []
+        elif_st = []
         else_statement = None
 
         for c in children[1:]:
-            if isinstance(c, Tree) and c.data == 'elseif_statement':
+            if isinstance(c, Tree) and c.data == 'elseif_st':
                 _condition = c.children[0]
                 _statement = c.children[1:]
-                elif_statement.append(ElseIfStatement(_condition, _statement))
+                elif_st.append(ElseIfStatement(_condition, _statement))
             elif isinstance(c, Tree) and c.data == 'else_statement':
                 else_statement = c.children
             else:
                 statement.append(c)
-        return IfStatement(condition, statement, elif_statement, else_statement, meta)
+        return IfStatement(condition, statement, elif_st, else_statement, meta)
 
-    def loop_statement(self, meta, children):
+    def loop_st(self, meta, children):
         index_item = children[0]
 
         condition = None
@@ -277,13 +277,13 @@ class GAMSTransformer(Transformer):
                 statement.append(child)
         return LoopStatement(index_item, condition, statement, meta)
 
-    def abort_statement(self, meta, children):
+    def abort_st(self, meta, children):
         return AbortStatement(children, meta)
 
     def display(self, meta, children):
         return Display(children, meta)
 
-    def eq_definition(self, meta, children):
+    def eq_def(self, meta, children):
 
         name = children[0].name
         index_list = None
@@ -486,7 +486,7 @@ class GAMSTransformer(Transformer):
 
     def expression(self, meta, children):
 
-        # func_expression, value, symbol[suffix], compiler_variable, quoted_string, expression
+        # func_expression, value, symbol[suffix], cli_param, quoted_string, expression
         if len(children) == 1:
             c = children[0]
             # value
@@ -578,7 +578,7 @@ class GAMSTransformer(Transformer):
     def index_element(self, meta, children):
         raise NotImplementedError
 
-    def compiler_variable(self, meta, children):
+    def cli_param(self, meta, children):
         raise NotImplementedError
 
     # helper methods -----------------------------------------------------------

@@ -2,58 +2,64 @@
 
 start: statement+
 
-?statement: [macro_conditional] ( declare_statement | execution_statement
+?statement: [macro_conditional] ( declare_def_st | exec_st
 								| COMMENT_BLOCK )
 
-?declare_statement:   symbol_definition
-					| eq_definition
-					| model_definition
-					| acronym_def
-					| file_st
-					| func_import
+?declare_def_st:  symbol_def
+				| eq_def
+				| model_def
+				| acronym_def
+				| file_st
+				| func_import
 
-?execution_statement: macro
-					| execute
-					| display
-					| assignment
-					| solve_statement
-					| option
-					| if_statement
-					| loop_statement
-					| abort_statement
-					| break
+?exec_st: abort_st
+		| assignment
+		| break
+		| continue
+		| display
+		| execute
+		| for_st
+		| if_st
+		| macro
+		| loop_st
+		| option
+		| solve_st
+		| put_st_variants
+		| put_st
+		| repeat_st
+		| while_st
 
 
 // ===================== DECLARATION/DEFINITION STATEMENTS =====================
 
 // ----------------------------- symbol definition -----------------------------
 
-symbol_definition: _SET 		definition+ 			_END -> set_list
-				| _PARAMETER 	definition+ 			_END -> parameter_list
-				| _SCALAR 		definition+ 			_END -> scalar_list
-				| _VARIABLE 	definition+ 			_END -> variable_list
-				| _PVARIABLE 	definition+ 			_END -> p_variable_list
-				| _BVARIABLE 	definition+ 			_END -> b_variable_list
-				| _EQUATION 	definition+ 			_END -> equation_list
-				| _TABLE 		table_definition 		_END -> table
-				| _ALIAS 		_LPAR index_list _RPAR 	_END -> alias_list
+symbol_def:   _SET 			definition+ 			_END -> set_list
+			| _PARAMETER 	definition+ 			_END -> parameter_list
+			| _SCALAR 		definition+ 			_END -> scalar_list
+			| _VARIABLE 	definition+ 			_END -> variable_list
+			| _PVARIABLE 	definition+ 			_END -> p_variable_list
+			| _BVARIABLE 	definition+ 			_END -> b_variable_list
+			| _EQUATION 	definition+ 			_END -> equation_list
+			| _TABLE 		table_definition 		_END -> table
+			| _ALIAS 		_LPAR index_list _RPAR 	_END -> alias_list
 
 
 // ---------------------------- equation definition ----------------------------
 
-eq_definition: symbol [conditional] ".." lhs equation_types rhs _END
+eq_def: symbol [conditional] ".." lhs equation_types rhs _END
 lhs: expression
 rhs: expression
 
 
 // ----------------------------- model definition ------------------------------
 
-model_definition: _MODEL single_model_definition+ _END
-single_model_definition: string [model_description] "/" symbol_name ("," symbol_name)* "/"
+model_def: _MODEL single_model_def+ _END
+single_model_def: string [model_description] "/" symbol_name ("," symbol_name)* "/"
 model_description: description
 
 
-// ------------------------------------ function import ------------------------------------
+// ------------------------------ function import ------------------------------
 
 func_import: _FUNCTION (internal_func_name _SLASH internal_lib_name _DOT func_name _SLASH)+ _END
 internal_func_name: string
@@ -61,17 +67,66 @@ internal_lib_name: string
 func_name: string
 
 
-// ------------------------------------ file statement ------------------------------------
+// ------------------------------ file statement -------------------------------
 
 file_st: _FILE filename [description] [_SLASH (filename | "''") _SLASH] ([_COMMA] filename [description] [_SLASH (filename | "''") _SLASH])* _END
 
 
-// ------------------------------------ acronym ------------------------------------
+// ---------------------------------- acronym ----------------------------------
 
 acronym_def: _ACRONYM identifier (_COMMA identifier)* _END
 
 
 // =========================== EXECUTION STATEMENTS ============================
+
+// ------------------------------------ put ------------------------------------
+
+put_st: _PUT (filename | output_item [[_OUTPUT_SEP] output_item] | (filename output_item [[_OUTPUT_SEP] output_item])) [[_OUTPUT_SEP] (filename | output_item [[_OUTPUT_SEP] output_item] | (filename output_item [[_OUTPUT_SEP] output_item]))]* _END
+_OUTPUT_SEP: _COMMA | " "+
+?output_item: ((SIGNED_NUMBER | symbol | quoted_text | cli_param) [local_formatting]) | cursor_controller+
+!cursor_controller: _SLASH+ | "#" NUMBER | "@" NUMBER
+// ?quoted_text: (/[']/ LEGAL_CHARACTER_EXCEPT_SINGLE_QUOTE* /[']/) | (/["]/ LEGAL_CHARACTER_EXCEPT_DOUBLE_QUOTE* /["]/)
+quoted_text: FLEX_ESCAPED_STRING
+!local_formatting: ":" ["<" | ">" | "<>"] [NUMBER] [":" NUMBER]
+
+
+// ------------------------------- put variants --------------------------------
+
+?put_st_variants: put_utility_st | putclear | putclose | puthd | putpage | puttl
+
+put_utility_st: _PUTUTILITY [filename] "'" p_u_command "'" _SLASH p_u_argument+ ("'" p_u_command "'" _SLASH p_u_argument+)* _END
+!p_u_command:  "assignText" | "click" | "dropEnv" | "ECArguments" | "exec"
+			| "exec.aSync" | "exec.aSyncNC" | "exec.checkErrorLevel"
+			| "gdxIn" | "gdxOut" | "glb" | "htm" | "inc" | "incLog"
+			| "incMsg" | "incMsgLog" | "log" | "msg" | "msgLog" | "ren"
+			| "save" | "setEnv" | "shell" | "shell.checkErrorLevel"
+			| "solver" | "title" | "winMsg"
+p_u_argument: (["'"] string | (symbol [local_formatting]) | filename ["'"]) | quoted_text
+
+putclear: _PUTCLEAR _END
+putclose: _PUTCLOSE ([filename] output_item*)* _END
+puthd: _PUTHD [filename] output_item ([_COMMA] output_item)* _END
+putpage: _PUTPAGE [conditional] [filename] [output_item] ([_COMMA] output_item)* _END
+puttl: _PUTTL [filename] output_item ([_COMMA] output_item)* _END
+
+// --------------------------------- for loop ----------------------------------
+
+for_st: _FOR _LPAR symbol "=" start_n (("to" | "To" | "TO") | ("downto" | "Downto" | "Downto")) end_n [("by" | "By" | "BY") step_n] _COMMA statement+ _RPAR _END
+start_n: SIGNED_NUMBER
+end_n: SIGNED_NUMBER
+step_n: NUMBER
+
+
+// ----------------------------------- break -----------------------------------
+
+break: _BREAK [conditional] [break_times] _END
+break_times: NUMBER
+
+
+// --------------------------------- continue ----------------------------------
+
+continue: _CONTINUE [conditional] _END
+
 
 // ------------------------------------ $if ------------------------------------
 // conditional compilation
@@ -84,19 +139,29 @@ macro_condition: _M_SET string -> env_test
 
 // ------------------------------- if statement --------------------------------
 
-if_statement: _IF _LPAR expression _COMMA statement+ (elseif_statement)* [else_statement] _RPAR _END
-elseif_statement: _ELSEIF expression _COMMA statement+
+if_st: _IF _LPAR expression _COMMA statement+ (elseif_st)* [else_statement] _RPAR _END
+elseif_st: _ELSEIF expression _COMMA statement+
 else_statement: _ELSE statement+
 
 
 // ----------------------------------- loop ------------------------------------
 
-loop_statement: _LOOP _LPAR index_item [conditional] _COMMA statement+ _RPAR _END
+loop_st: _LOOP _LPAR index_item [conditional] _COMMA statement+ _RPAR _END
+
+
+// ---------------------------------- repeat -----------------------------------
+
+repeat_st: _REPEAT _LPAR statement+ _UNTIL expression _RPAR _END
+
+
+// ---------------------------------- while -----------------------------------
+
+while_st: _WHILE _LPAR expression _COMMA statement+ _RPAR _END
 
 
 // ----------------------------------- abort -----------------------------------
 
-abort_statement: _ABORT [(identifier | description) (_COMMA identifier | description)*] _END
+abort_st: _ABORT [(identifier | description) (_COMMA identifier | description)*] _END
 
 
 // ----------------------------------- macro -----------------------------------
@@ -123,9 +188,10 @@ execute: execute_unload _END
 
 execute_unload: _EXECUTE_UNLOAD _QUOTE filename _QUOTE symbol+
 
-filename: (string | compiler_variable | _SLASH) [_DOT extension]
+filename: (FILENAME_BASE | cli_param | _SLASH) [_DOT extension]
+FILENAME_BASE: /[A-Za-z0-9+\-=(){}\[\],!_&^#%@$]+/
 quoted_string: /['"]/ string /['"]/
-compiler_variable: "%" string "%"
+cli_param: "%" string "%"
 extension: string
 
 
@@ -145,7 +211,7 @@ display: _DISPLAY symbol ([_COMMA] symbol )* _END
 
 // ------------------------------ solve statement ------------------------------
 
-solve_statement: _SOLVE string ( "using" model_type sense symbol_name | sense symbol_name "using" model_type) _END
+solve_st: _SOLVE string ( "using" model_type sense symbol_name | sense symbol_name "using" model_type) _END
 model_type: string
 sense: string
 
@@ -207,7 +273,8 @@ pow_expr:    primary POWER_OP pow_expr
 indexed_operation: operator_indexed _LPAR (index_list | _LPAR index_list _RPAR) [conditional] _COMMA expression _RPAR
 
 // general expressions
-expression:   func_expression
+expression:   _LPAR expression _RPAR
+			| func_expression
 			| expression operator_logical expression
 			| expression operator_relation expression
 			| add_expr
@@ -215,10 +282,9 @@ expression:   func_expression
 			| negate expression
 			| value
 			| symbol
-			| compiler_variable
+			| cli_param
 			| quoted_string // this is for compiler expressions
 			| indexed_operation
-			| _LPAR expression _RPAR
 
 func_expression: (math_functions | string_functions | time_functions) _LPAR expression _RPAR
 
@@ -234,7 +300,7 @@ symbol_index	: _LPAR index_list _RPAR
 index_list		: index_item (_COMMA index_item )*
 !index_item		: symbol_name
 				| symbol_element
-				| compiler_variable
+				| cli_param
 				| symbol_name "++" value -> circular_lead
 				| symbol_name "--" value -> circular_lag
 				| symbol_name "+" value -> lead
@@ -243,7 +309,7 @@ index_list		: index_item (_COMMA index_item )*
 symbol_range    : identifier "*" identifier
 symbol_id 		: identifier ("." identifier)*
 symbol_element  : _QUOTE identifier _QUOTE
-				| _QUOTE compiler_variable _QUOTE
+				| _QUOTE cli_param _QUOTE
 symbol_name		: identifier
 // ?identifier 	: WORD_IDENTIFIER|INTEGER
 // TODO: add underscore to identifier
@@ -256,30 +322,42 @@ suffix			: _DOT string
 
 // --------------------------------- keywords ----------------------------------
 
-_SET: ("set" ["s"]) | ("Set" ["s"]) | ("SET" ["S"])
-_PARAMETER: ("parameter" ["s"]) | ("Parameter" ["s"]) | ("PARAMETER" ["S"])
-_TABLE: "table" | "Table" | "TABLE"
-_VARIABLE: ["free " | "Free " | "FREE "] (("variable" ["s"]) | ("Variable" ["s"]) | ("VARIABLE" ["S"]))
-_PVARIABLE: ("positive variable" ["s"]) | ("Positive variable" ["s"]) | ("Positive Variable" ["s"]) | ("POSITIVE VARIABLE" ["S"])
-_BVARIABLE: ("binary variable" ["s"]) | ("Binary variable" ["s"]) | ("Binary Variable" ["s"]) | ("BINARY VARIABLE" ["S"])
-_EQUATION: ("equation" ["s"]) | ("Equation" ["s"]) | ("EQUATION" ["S"])
-_MODEL: "model" | "Model" | "MODEL"
-_SOLVE: "solve" | "Solve" | "SOLVE"
-_SCALAR: ("scalar" ["s"]) | ("Scalar" ["s"]) | ("SCALAR" ["S"])
+_ABORT: "abort" | "Abort" | "ABORT"
+_ACRONYM: ("Acronym" ["s"]) | ("acronym" ["s"]) | ("ACRONYM" ["S"])
 _ALIAS: "alias" | "Alias" | "ALIAS"
-_OPTION: "OPTION" | "option"
-_IF: "if" | "If" | "IF"
-_ELSEIF: "elseif" | "Elseif" | "ELSEIF"
-_ELSE: "else" | "Else" | "ELSE"
+_BREAK: "break" | "Break" | "BREAK"
+_BVARIABLE: ("binary variable" ["s"]) | ("Binary variable" ["s"]) | ("Binary Variable" ["s"]) | ("BINARY VARIABLE" ["S"])
+_CONTINUE: "continue" | "Continue" | "CONTINUE"
+_DISPLAY: "display" | "Display" | "DISPLAY"
 _DOLLARIF: "$if" | "$If" | "$IF"
 _DOLLAR: "$"
-_LOOP: "loop" | "Loop" | "LOOP"
-_ABORT: "abort" | "Abort" | "ABORT"
-_DISPLAY: "display" | "Display" | "DISPLAY"
-_ACRONYM: ("Acronym" ["s"]) | ("acronym" ["s"]) | ("ACRONYM" ["S"])
+_ELSEIF: "elseif" | "Elseif" | "ELSEIF"
+_ELSE: "else" | "Else" | "ELSE"
+_EQUATION: ("equation" ["s"]) | ("Equation" ["s"]) | ("EQUATION" ["S"])
 _FILE: ("File" ["s"]) | ("file" ["s"]) | ("FILE" ["S"])
+_FOR: "for" | "For" | "FOR"
 _FUNCTION: "function" | "Function" | "FUNCTION"
-
+_IF: "if" | "If" | "IF"
+_LOOP: "loop" | "Loop" | "LOOP"
+_MODEL: "model" | "Model" | "MODEL"
+_OPTION: "OPTION" | "option"
+_PARAMETER: ("parameter" ["s"]) | ("Parameter" ["s"]) | ("PARAMETER" ["S"])
+_PUT: "put" | "Put" | "PUT"
+_PUTUTILITY: "put_utility" | "put_utilities"
+_PUTCLEAR: "putclear"
+_PUTCLOSE: "putclose"
+_PUTHD: "puthd"
+_PUTPAGE: "putpage"
+_PUTTL: "puttl"
+_PVARIABLE: ("positive variable" ["s"]) | ("Positive variable" ["s"]) | ("Positive Variable" ["s"]) | ("POSITIVE VARIABLE" ["S"])
+_REPEAT: "repeat" | "Repeat" | "REPEAT"
+_SCALAR: ("scalar" ["s"]) | ("Scalar" ["s"]) | ("SCALAR" ["S"])
+_SET: ("set" ["s"]) | ("Set" ["s"]) | ("SET" ["S"])
+_SOLVE: "solve" | "Solve" | "SOLVE"
+_TABLE: "table" | "Table" | "TABLE"
+_UNTIL: "until" | "Until" | "UNTIL"
+_VARIABLE: ["free " | "Free " | "FREE "] (("variable" ["s"]) | ("Variable" ["s"]) | ("VARIABLE" ["S"]))
+_WHILE: "while" | "While" | "WHILE"
 
 // -------------------------------- punctuation --------------------------------
 
@@ -307,6 +385,9 @@ WORD			: /[\w-]+/
 // 		?<!: negative lookbehind; looking for "\'" or "\"" without \\ before it
 FLEX_ESCAPED_STRING : /['"].*?(?<!\\)['"]/
 
+// LEGAL_CHARACTER: /[A-Za-z0-9+\-=<>(){}\[\]'\"\\\/,;:.?!  _&^#*%@$]/
+// LEGAL_CHARACTER_EXCEPT_SINGLE_QUOTE: /[A-Za-z0-9+\-=<>(){}\[\]\"\\\/,;:.?!  _&^#*%@$]/
+// LEGAL_CHARACTER_EXCEPT_DOUBLE_QUOTE: /[A-Za-z0-9+\-=<>(){}\[\]'\\\/,;:.?!  _&^#*%@$]/
 
 // ------------------------------ comments and WS ------------------------------
 

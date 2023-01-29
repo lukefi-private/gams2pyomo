@@ -6,3 +6,8 @@
 
 ## GAMS Commands that Will NOT Be Translated
 - function import
+- `put`
+
+
+## Unsupported dollar control options
+- `$onPut`, `$offPut`

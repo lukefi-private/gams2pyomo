@@ -21,9 +21,9 @@ class ComponentContainer(object):
         model_defs (list): The optimization definitions.
         solve (list): The solve statements.
         options (dict): The options.
-        if_statement (list): The if statements.
-        loop_statement (list): The loop statements.
-        abort_statement (list): The abort statements.
+        if_st (list): The if statements.
+        loop_st (list): The loop statements.
+        abort_st (list): The abort statements.
         display_statement (list): The display statements.
     """
 
@@ -44,9 +44,9 @@ class ComponentContainer(object):
         self.model_defs = []
         self.solve = []
         self.options = {}
-        self.if_statement = []
-        self.loop_statement = []
-        self.abort_statement = []
+        self.if_st = []
+        self.loop_st = []
+        self.abort_st = []
         self.display = []
 
     def add_alias(self, component):
@@ -765,8 +765,8 @@ class IfStatement():
     The class for if statement.
     """
 
-    def __init__(self, condition, statement, elif_statement: List[ElseIfStatement], else_statement, meta):
-        self.condition, self.statement, self.elif_statement, self.else_statement = condition, statement, elif_statement, else_statement
+    def __init__(self, condition, statement, elif_st: List[ElseIfStatement], else_statement, meta):
+        self.condition, self.statement, self.elif_st, self.else_statement = condition, statement, elif_st, else_statement
         self.lines = (meta.line, meta.end_line)
 
     def assemble(self, container: ComponentContainer, _indent='', **kwargs):
@@ -790,10 +790,10 @@ class IfStatement():
                 raise NotImplementedError
 
         # elif
-        if self.elif_statement:
+        if self.elif_st:
             # reduce indent level
             _indent = (len(_indent) - 1) * '\t'
-            for s in self.elif_statement:
+            for s in self.elif_st:
                 res += s.assemble(container, _indent)
 
         # else statement
