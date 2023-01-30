@@ -14,8 +14,8 @@ start: statement+
 
 ?exec_st: abort_st
 		| assignment
-		| break
-		| continue
+		| break_st
+		| continue_st
 		| display
 		| execute
 		| for_st
@@ -119,13 +119,13 @@ step_n: NUMBER
 
 // ----------------------------------- break -----------------------------------
 
-break: _BREAK [conditional] [break_times] _END
+break_st: _BREAK [conditional] [break_times] _END
 break_times: NUMBER
 
 
 // --------------------------------- continue ----------------------------------
 
-continue: _CONTINUE [conditional] _END
+continue_st: _CONTINUE [conditional] _END
 
 
 // ------------------------------------ $if ------------------------------------
