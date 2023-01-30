@@ -112,9 +112,9 @@ puttl: _PUTTL [filename] output_item ([_COMMA] output_item)* _END
 // --------------------------------- for loop ----------------------------------
 
 for_st: _FOR _LPAR symbol "=" start_n (("to" | "To" | "TO") | ("downto" | "Downto" | "Downto")) end_n [("by" | "By" | "BY") step_n] _COMMA statement+ _RPAR _END
-start_n: SIGNED_NUMBER
-end_n: SIGNED_NUMBER
-step_n: NUMBER
+?start_n: SIGNED_NUMBER
+?end_n: SIGNED_NUMBER
+?step_n: NUMBER
 
 
 // ----------------------------------- break -----------------------------------
