@@ -286,7 +286,8 @@ expression:   _LPAR expression _RPAR
 			| quoted_string // this is for compiler expressions
 			| indexed_operation
 
-func_expression: (math_functions | string_functions | time_functions) _LPAR expression _RPAR
+func_expression: (math_functions | string_functions | time_functions) _LPAR func_arguments _RPAR
+?func_arguments: expression (_COMMA expression)*
 
 negate: "not" | "NOT"
 

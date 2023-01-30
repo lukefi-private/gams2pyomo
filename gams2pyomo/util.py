@@ -1,3 +1,5 @@
+import numpy as np
+
 NUMBER = '0123456789'
 
 def sequence_set(idx1, idx2):
@@ -57,3 +59,16 @@ def change_case(string):
     """Change string format into snake case."""
 
     return ''.join(['_'+i.lower() if i.isupper() else i for i in string]).lstrip('_')
+
+
+def gams_arange(start, stop, step=1):
+    """
+    Generate a list from the for loop condition in GAMS.
+    """
+
+    res = list(np.arange(start, stop, step))
+
+    if res[-1] + step == stop:
+        res.append(stop)
+
+    return res

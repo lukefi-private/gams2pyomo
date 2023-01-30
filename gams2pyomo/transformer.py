@@ -20,10 +20,12 @@ options = {}
 
 """
 
-_NON_DEF_STATEMENT_TYPES = (EquationDefinition, ModelDefinition, SolveStatement, Assignment,
-                            Definition, IfStatement, LoopStatement, AbortStatement, Alias, Display, Option, Macro)
+_NON_DEF_STATEMENT_TYPES = \
+    (EquationDefinition, ModelDefinition, SolveStatement, Assignment,
+    Definition, IfStatement, LoopStatement, AbortStatement, Alias, Display,
+    Option, Macro, ForStatement, RepeatStatement, WhileStatement)
 _STATEMENT_TYPES = (Definition, ) + _NON_DEF_STATEMENT_TYPES
-_ARITHMETIC_TYPES = (Symbol, int, float, UnaryExpression,
+_ARITHMETIC_TYPES = (Symbol, int, float, FuncExpression,
                      ArithmeticExpression, SetMinExpression, SetMaxExpression, SumExpression)
 
 
@@ -132,6 +134,47 @@ class GAMSTransformer(Transformer):
         return res
 
     # statements ---------------------------------------------------------------
+
+    def for_st(self, meta, children):
+
+        symbol = children[0]
+        start_n = float(children[1])
+        end_n = float(children[2])
+
+        c = children[3]
+
+        if isinstance(c, Token) and c.type == 'NUMBER':
+            step = float(c)
+            statements = children[4:]
+        else:
+            step = 1
+            statements = children[3:]
+
+        # make sure the stepsize has the correct sign
+        if end_n <= start_n:
+            step = -step
+
+        return ForStatement(symbol, start_n, end_n, step, statements, meta)
+
+    def put_st(self, meta, children):
+        raise NotImplementedError
+
+    def repeat_st(self, meta, children):
+
+        statements = children[:-1]
+        conditional = children[-1]
+        return RepeatStatement(conditional, statements, meta)
+
+    def while_st(self, meta, children):
+        conditional = children[0]
+        statements = children[1:]
+        return WhileStatement(conditional, statements, meta)
+
+    def break_st(self, meta, children):
+        raise NotImplementedError
+
+    def continue_st(self, meta, children):
+        raise NotImplementedError
 
     def option(self, meta, children):
         name = children[0]
@@ -496,7 +539,7 @@ class GAMSTransformer(Transformer):
             if isinstance(c, Symbol):
                 return c
             # expression already processed
-            if isinstance(c, (UnaryExpression, BinaryExpression, ArithmeticExpression, SumExpression, SetMaxExpression, SetMinExpression)):
+            if isinstance(c, (FuncExpression, BinaryExpression, ArithmeticExpression, SumExpression, SetMaxExpression, SetMinExpression)):
                 return c
             else:
                 raise NotImplementedError
@@ -573,7 +616,12 @@ class GAMSTransformer(Transformer):
         raise NotImplementedError
 
     def func_expression(self, meta, children):
-        return UnaryExpression(*children)
+        operator = children[0]
+        if isinstance(children[1], Tree) and children[1].data == 'func_arguments':
+            operands = children[1].children
+        else:
+            operands = children[1]
+        return FuncExpression(operator, operands)
 
     def index_element(self, meta, children):
         raise NotImplementedError
