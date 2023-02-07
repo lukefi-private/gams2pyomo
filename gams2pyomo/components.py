@@ -1,7 +1,7 @@
 import logging
 from typing import List
 from lark import Tree
-from .util import find_alias
+from .util import find_alias, gams_arange
 
 logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
 logger = logging.getLogger('gams_translator.components')
@@ -21,9 +21,9 @@ class ComponentContainer(object):
         model_defs (list): The optimization definitions.
         solve (list): The solve statements.
         options (dict): The options.
-        if_statement (list): The if statements.
-        loop_statement (list): The loop statements.
-        abort_statement (list): The abort statements.
+        if_st (list): The if statements.
+        loop_st (list): The loop statements.
+        abort_st (list): The abort statements.
         display_statement (list): The display statements.
     """
 
@@ -44,9 +44,9 @@ class ComponentContainer(object):
         self.model_defs = []
         self.solve = []
         self.options = {}
-        self.if_statement = []
-        self.loop_statement = []
-        self.abort_statement = []
+        self.if_st = []
+        self.loop_st = []
+        self.abort_st = []
         self.display = []
 
     def add_alias(self, component):
@@ -765,8 +765,8 @@ class IfStatement():
     The class for if statement.
     """
 
-    def __init__(self, condition, statement, elif_statement: List[ElseIfStatement], else_statement, meta):
-        self.condition, self.statement, self.elif_statement, self.else_statement = condition, statement, elif_statement, else_statement
+    def __init__(self, condition, statement, elif_st: List[ElseIfStatement], else_statement, meta):
+        self.condition, self.statement, self.elif_st, self.else_statement = condition, statement, elif_st, else_statement
         self.lines = (meta.line, meta.end_line)
 
     def assemble(self, container: ComponentContainer, _indent='', **kwargs):
@@ -790,10 +790,10 @@ class IfStatement():
                 raise NotImplementedError
 
         # elif
-        if self.elif_statement:
+        if self.elif_st:
             # reduce indent level
             _indent = (len(_indent) - 1) * '\t'
-            for s in self.elif_statement:
+            for s in self.elif_st:
                 res += s.assemble(container, _indent)
 
         # else statement
@@ -857,6 +857,110 @@ class LoopStatement():
         return res
 
 
+class RepeatStatement():
+    def __init__(self, conditional, statements, meta):
+
+        self.conditional, self.statements = conditional, statements
+        self.lines = (meta.line, meta.end_line)
+
+    def assemble(self, container: ComponentContainer, _indent='', **kwargs):
+
+        # start line
+        res = _indent + 'while True:' + _NL
+        # increase indent
+        _indent += '\t'
+
+        # statement(s)
+        for s in self.statements:
+            try:
+                res += s.assemble(container, _indent)
+            except Exception as e:
+                msg = "An error occurred during the transformation step. Program terminates.\n"
+                msg += f"Step: Transforming for loop, statement: {s}"
+                logger.error(msg)
+                raise e
+
+        # conditional lines
+        res += _indent + 'if '
+
+        c = self.conditional
+        if isinstance(c, BinaryExpression):
+            res += c.assemble(container, _indent, top_level=True)
+            res += ': break' + _NL
+        else:
+            raise NotImplementedError
+
+        return res
+
+
+class WhileStatement():
+    def __init__(self, conditional, statements, meta):
+
+        self.conditional, self.statements = conditional, statements
+        self.lines = (meta.line, meta.end_line)
+
+    def assemble(self, container: ComponentContainer, _indent='', **kwargs):
+
+        # start line
+        res = _indent + 'while '
+
+        c = self.conditional
+        if isinstance(c, BinaryExpression):
+            res += c.assemble(container, _indent, top_level=True)
+            res += ':' + _NL
+        else:
+            raise NotImplementedError
+        # increase indent
+        _indent += '\t'
+
+        # statement(s)
+        for s in self.statements:
+            try:
+                res += s.assemble(container, _indent)
+            except Exception as e:
+                msg = "An error occurred during the transformation step. Program terminates.\n"
+                msg += f"Step: Transforming for loop, statement: {s}"
+                logger.error(msg)
+                raise e
+
+        return res
+
+
+class ForStatement():
+    def __init__(self, symbol, start_n, end_n, step, statements, meta):
+
+        for_list = gams_arange(start_n, end_n, step)
+
+        self.for_list = for_list
+
+        self.symbol, self.statements = symbol, statements
+
+        self.lines = (meta.line, meta.end_line)
+
+    def assemble(self, container: ComponentContainer, _indent='', **kwargs):
+
+        _idx = self.symbol.name
+
+        res = ''
+
+        # loop lines
+        res += _indent + f'for {_idx} in {self.for_list}:' + _NL
+        # increase indent
+        _indent += '\t'
+
+        # statement(s)
+        for s in self.statements:
+            try:
+                res += s.assemble(container, _indent)
+            except Exception as e:
+                msg = "An error occurred during the transformation step. Program terminates.\n"
+                msg += f"Step: Transforming for loop, statement: {s}"
+                logger.error(msg)
+                raise e
+
+        return res
+
+
 class AbortStatement():
     def __init__(self, descriptions, meta):
         self.descriptions = descriptions
@@ -887,7 +991,6 @@ class Display():
         self.lines = (meta.line, meta.end_line)
 
     def assemble(self, container: ComponentContainer, _indent='', **kwargs):
-        res = ''
 
         prefix = _PREFIX
         if 'last_solved_model' in globals():
@@ -910,9 +1013,9 @@ class Display():
             else:
                 _res = symbol.assemble(container, _indent) + '.pprint()' + _NL
 
-            _tmp_res.append(_res)
+            _tmp_res.append(_indent + _res)
 
-        res += ''.join(_tmp_res)
+        res = ''.join(_tmp_res)
 
         return res
 
@@ -976,16 +1079,16 @@ class SpecialIndex():
         return res
 
 
-class UnaryExpression():
+class FuncExpression():
 
-    def __init__(self, operator, operand):
+    def __init__(self, operator, operands):
 
         self.operator = operator
-        self.operand = operand
+        self.operands = operands
 
     def assemble(self, container: ComponentContainer, _indent='', **kwargs):
 
-        o = self.operand
+        o = self.operands
         if self.operator.data == 'fn_card':
             res = f'len({_PREFIX + o.name.upper()})'
         elif self.operator.data == 'fn_ord':
@@ -994,8 +1097,17 @@ class UnaryExpression():
             res = f'(1 + math.erf(({o.assemble(container, _indent)}) / math.sqrt(2))) / 2'
         elif self.operator.data == 'fn_sqrt':
             res = f'({o.assemble(container, _indent)}) ** 0.5'
+        elif self.operator.data == 'fn_abs':
+            res = f'abs({o.assemble(container, _indent)})'
+        elif self.operator.data == 'fn_round':
+            if isinstance(o, list):
+                res = f'round({o[0].assemble(container, _indent)}, {o[1]})'
+            else:  # decimal not given
+                res = f'round({o[0].assemble(container, _indent)})'
         else:
-            raise NotImplementedError
+            msg = "The operator has not been implemented: "
+            msg += self.operator.data
+            raise NotImplementedError(msg)
 
         return res
 
@@ -1219,5 +1331,5 @@ class Macro():
             raise NotImplementedError
 
 _ASSEMBLE_TYPES = (Symbol, SumExpression, BinaryExpression,
-                   ArithmeticExpression, UnaryExpression, SetMaxExpression,
+                   ArithmeticExpression, FuncExpression, SetMaxExpression,
                    SetMinExpression)

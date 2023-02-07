@@ -20,10 +20,12 @@ options = {}
 
 """
 
-_NON_DEF_STATEMENT_TYPES = (EquationDefinition, ModelDefinition, SolveStatement, Assignment,
-                            Definition, IfStatement, LoopStatement, AbortStatement, Alias, Display, Option, Macro)
+_NON_DEF_STATEMENT_TYPES = \
+    (EquationDefinition, ModelDefinition, SolveStatement, Assignment,
+    Definition, IfStatement, LoopStatement, AbortStatement, Alias, Display,
+    Option, Macro, ForStatement, RepeatStatement, WhileStatement)
 _STATEMENT_TYPES = (Definition, ) + _NON_DEF_STATEMENT_TYPES
-_ARITHMETIC_TYPES = (Symbol, int, float, UnaryExpression,
+_ARITHMETIC_TYPES = (Symbol, int, float, FuncExpression,
                      ArithmeticExpression, SetMinExpression, SetMaxExpression, SumExpression)
 
 
@@ -39,7 +41,7 @@ class GAMSTransformer(Transformer):
 
     # root node transforming ---------------------------------------------------
 
-    def start(self, children, meta):
+    def start(self, meta, children):
         """
         Assemble the result string at the root node.
         """
@@ -61,32 +63,45 @@ class GAMSTransformer(Transformer):
             if isinstance(statement, Alias):
                 container.add_alias(statement.aliases)
 
-            # non-definition statements
-            if isinstance(statement, _NON_DEF_STATEMENT_TYPES):
-                res += statement.assemble(container)
+            # assemble each statement
+            try:
+                # non-definition statements
+                if isinstance(statement, _NON_DEF_STATEMENT_TYPES):
+                    res += statement.assemble(container)
 
-            # definition lists
-            elif isinstance(statement, list):
+                # definition lists
+                elif isinstance(statement, list):
 
-                # go through each definition
-                for _c in statement:
-                    if isinstance(_c, (Definition, ModelDefinition)):
-                        res += _c.assemble(container)
+                    # go through each definition
+                    for _c in statement:
+                        if isinstance(_c, (Definition, ModelDefinition)):
+                            res += _c.assemble(container)
 
-                        # record symbols
-                        container.add_symbol(_c)
+                            # record symbols
+                            container.add_symbol(_c)
+                        else:
+                            raise NotImplementedError(f"failed to assemble type {type(_c)} in the definition list at root node.")
+
+                # comment block
+                elif isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
+                    # `[8:-8]`: remove `$ontext\n` and `$offtext`
+                    comment_block = statement.value[8:-8]
+                    res += f'\n"""{comment_block}"""\n\n'
+
+                else:
+                    raise NotImplementedError(f"failed to assemble type {type(statement)} at root node.")
+            except Exception as e:
+                error_msg = "The statement cannot be translated into Pyomo. It is skipped in the generated code.\n"
+                if hasattr(statement, 'lines'):
+                    if statement.lines[0] == statement.lines[1]:
+                        loc = f"line {statement.lines[0]}"
                     else:
-                        raise NotImplementedError(
-                            f"failed to assemble type {type(_c)} in the definition list at root node.")
-
-            # comment block
-            elif isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
-                # `[8:-8]`: remove `$ontext\n` and `$offtext`
-                comment_block = statement.value[8:-8]
-                res += f'\n"""{comment_block}"""\n\n'
-
-            else:
-                raise NotImplementedError(f"failed to assemble type {type(statement)} (not in the definition list) at root node.")
+                        loc = f"lines {statement.lines[0]}-{statement.lines[1]}"
+                    error_msg += f"statement location: {loc}.\n"
+                error_msg += f"An exception of type {type(e).__name__} occurred."
+                if e.args:
+                    error_msg += f"Arguments: {e.args!r}\n"
+                logger.error(error_msg)
 
         # check if there are comments at the end
         if self.comments:
@@ -120,7 +135,48 @@ class GAMSTransformer(Transformer):
 
     # statements ---------------------------------------------------------------
 
-    def option(self, children, meta):
+    def for_st(self, meta, children):
+
+        symbol = children[0]
+        start_n = float(children[1])
+        end_n = float(children[2])
+
+        c = children[3]
+
+        if isinstance(c, Token) and c.type == 'NUMBER':
+            step = float(c)
+            statements = children[4:]
+        else:
+            step = 1
+            statements = children[3:]
+
+        # make sure the stepsize has the correct sign
+        if end_n <= start_n:
+            step = -step
+
+        return ForStatement(symbol, start_n, end_n, step, statements, meta)
+
+    def put_st(self, meta, children):
+        raise NotImplementedError
+
+    def repeat_st(self, meta, children):
+
+        statements = children[:-1]
+        conditional = children[-1]
+        return RepeatStatement(conditional, statements, meta)
+
+    def while_st(self, meta, children):
+        conditional = children[0]
+        statements = children[1:]
+        return WhileStatement(conditional, statements, meta)
+
+    def break_st(self, meta, children):
+        raise NotImplementedError
+
+    def continue_st(self, meta, children):
+        raise NotImplementedError
+
+    def option(self, meta, children):
         name = children[0]
         value = children[1].value
         try:
@@ -131,11 +187,11 @@ class GAMSTransformer(Transformer):
             value = value.lower()
         return Option(name, value, meta)
 
-    def model_definition(self, children, _):
-        # return one or more `single_model_definition`
+    def model_def(self, meta, children):
+        # return one or more `single_model_def`
         return children
 
-    def single_model_definition(self, children, meta):
+    def single_model_def(self, meta, children):
         name = children[0]
         description = None
         equations = []
@@ -146,7 +202,7 @@ class GAMSTransformer(Transformer):
                 equations.append(c)
         return ModelDefinition(name, equations, description, meta)
 
-    def solve_statement(self, children, meta):
+    def solve_st(self, meta, children):
         name = children[0]
         for c in children[1:]:
             if isinstance(c, Tree) and c.data == 'sense':
@@ -157,7 +213,7 @@ class GAMSTransformer(Transformer):
                 obj_var = c
         return SolveStatement(name, type, sense, obj_var, meta)
 
-    def assignment(self, children, meta):
+    def assignment(self, meta, children):
         symbol = children[0]
         if len(children) == 2:
             conditional = None
@@ -167,7 +223,7 @@ class GAMSTransformer(Transformer):
             expression = children[2]
         return Assignment(symbol, conditional, expression, meta)
 
-    def set_list(self, children: List[Definition], _):
+    def set_list(self, meta, children: List[Definition]):
         # `children` should be a list of Definition; only need to update their
         # `.type` attributes
         for set_def in children:
@@ -176,27 +232,27 @@ class GAMSTransformer(Transformer):
             set_def.symbol.name = set_def.symbol.name.upper()
         return children
 
-    def parameter_list(self, children, _):
+    def parameter_list(self, _, children):
         for param in children:
             param.type = 'parameter'
         return children
 
-    def scalar_list(self, children, _):
+    def scalar_list(self, _, children):
         for scalar in children:
             scalar.type = 'scalar'
         return children
 
-    def equation_list(self, children, _):
+    def equation_list(self, _, children):
         for eq in children:
             eq.type = 'equation'
         return children
 
-    def table_list(self, children, _):
+    def table_list(self, _, children):
         for table in children:
             table.type = 'table'
         return children
 
-    def b_variable_list(self, children, _):
+    def b_variable_list(self, _, children):
         """
         List of binary variables.
         """
@@ -207,7 +263,7 @@ class GAMSTransformer(Transformer):
 
         return children
 
-    def p_variable_list(self, children, _):
+    def p_variable_list(self, _, children):
         """
         List of non-negative variables.
         """
@@ -215,7 +271,7 @@ class GAMSTransformer(Transformer):
             var_def.type = 'p_variable'
         return children
 
-    def variable_list(self, children, _):
+    def variable_list(self, _, children):
         """
         List of variables.
         """
@@ -223,7 +279,7 @@ class GAMSTransformer(Transformer):
             var_def.type = 'variable'
         return children
 
-    def alias_list(self, children, meta):
+    def alias_list(self, meta, children):
         """
         List of aliases.
         """
@@ -232,26 +288,26 @@ class GAMSTransformer(Transformer):
         # list)
         return Alias(children[0], meta)
 
-    def if_statement(self, children, meta):
+    def if_st(self, meta, children):
 
         condition = children[0]
 
         statement = []
-        elif_statement = []
+        elif_st = []
         else_statement = None
 
         for c in children[1:]:
-            if isinstance(c, Tree) and c.data == 'elseif_statement':
+            if isinstance(c, Tree) and c.data == 'elseif_st':
                 _condition = c.children[0]
                 _statement = c.children[1:]
-                elif_statement.append(ElseIfStatement(_condition, _statement))
+                elif_st.append(ElseIfStatement(_condition, _statement))
             elif isinstance(c, Tree) and c.data == 'else_statement':
                 else_statement = c.children
             else:
                 statement.append(c)
-        return IfStatement(condition, statement, elif_statement, else_statement, meta)
+        return IfStatement(condition, statement, elif_st, else_statement, meta)
 
-    def loop_statement(self, children, meta):
+    def loop_st(self, meta, children):
         index_item = children[0]
 
         condition = None
@@ -264,13 +320,13 @@ class GAMSTransformer(Transformer):
                 statement.append(child)
         return LoopStatement(index_item, condition, statement, meta)
 
-    def abort_statement(self, children, meta):
+    def abort_st(self, meta, children):
         return AbortStatement(children, meta)
 
-    def display(self, children, meta):
+    def display(self, meta, children):
         return Display(children, meta)
 
-    def eq_definition(self, children, meta):
+    def eq_def(self, meta, children):
 
         name = children[0].name
         index_list = None
@@ -292,7 +348,7 @@ class GAMSTransformer(Transformer):
 
     # basic elements -----------------------------------------------------------
 
-    def definition(self, children, meta):
+    def definition(self, meta, children):
 
         symbol = children[0]
         data = None
@@ -306,7 +362,7 @@ class GAMSTransformer(Transformer):
 
         return Definition(symbol, description, data, meta)
 
-    def data(self, children, _):
+    def data(self, meta, children):
         if isinstance(children, list):
             if isinstance(children[0], list) and len(children) == 1:
                 return children[0]
@@ -318,10 +374,10 @@ class GAMSTransformer(Transformer):
             return children
         raise NotImplementedError
 
-    def idx_value(self, children, _):
+    def idx_value(self, meta, children):
         return (children[0], children[1])
 
-    def data_element(self, children, _):
+    def data_element(self, meta, children):
         # probably most of the time?
         if len(children) == 1:
             c = children[0]
@@ -329,20 +385,20 @@ class GAMSTransformer(Transformer):
                 return c
         raise NotImplementedError
 
-    def string(self, children, _):
+    def string(self, meta, children):
         return children[0].value
 
-    def value(self, children, _):
+    def value(self, meta, children):
         v = float(children[0])
         if v.is_integer():
             v = int(v)
         return v
 
-    def description(self, children, _):
+    def description(self, meta, children):
         # `[1:-1]`: remove quote
         return children[0].value[1:-1]
 
-    def identifier(self, children, _):
+    def identifier(self, meta, children):
         v = children[0].value
 
         if children[0].type == 'WORD_IDENTIFIER':
@@ -356,19 +412,19 @@ class GAMSTransformer(Transformer):
             pass
         return v
 
-    def symbol(self, children, _):
+    def symbol(self, meta, children):
         return Symbol(children)
 
-    def symbol_name(self, children, _):
+    def symbol_name(self, meta, children):
         return children[0]
 
-    def symbol_range(self, children, _):
+    def symbol_range(self, meta, children):
         return sequence_set(children[0], children[1])
 
-    def symbol_index(self, children, _):
+    def symbol_index(self, meta, children):
         return children[0]
 
-    def symbol_id(self, children, _):
+    def symbol_id(self, meta, children):
 
         # maintain integer
         if len(children) == 1:
@@ -376,7 +432,7 @@ class GAMSTransformer(Transformer):
 
         return '.'.join([str(c) for c in children])
 
-    def index_list(self, children, _):
+    def index_list(self, meta, children):
 
         res = []
 
@@ -393,7 +449,7 @@ class GAMSTransformer(Transformer):
                 raise NotImplementedError
         return res
 
-    def index_item(self, children, _):
+    def index_item(self, meta, children):
         c = children[0]
         if isinstance(c, (str, int)):
             return c
@@ -402,25 +458,25 @@ class GAMSTransformer(Transformer):
         else:
             raise NotImplementedError
 
-    def symbol_element(self, children, _):
+    def symbol_element(self, meta, children):
         return children[0]
 
-    def lead(self, children, _):
+    def lead(self, meta, children):
         return SpecialIndex(children[0], 'lead', children[1])
 
-    def lag(self, children, _):
+    def lag(self, meta, children):
         return SpecialIndex(children[0], 'lag', children[1])
 
-    def circular_lead(self, children, _):
+    def circular_lead(self, meta, children):
         return SpecialIndex(children[0], 'circular_lead', children[1])
 
-    def circular_lag(self, children, _):
+    def circular_lag(self, meta, children):
         return SpecialIndex(children[0], 'circular_lag', children[1])
 
-    def suffix(self, children, _):
+    def suffix(self, meta, children):
         return children[0]
 
-    def add_expr(self, children, _):
+    def add_expr(self, meta, children):
         if len(children) == 1 and isinstance(children[0], _ARITHMETIC_TYPES):
             return children[0]
         elif len(children) == 3:
@@ -430,7 +486,7 @@ class GAMSTransformer(Transformer):
         else:
             raise NotImplementedError
 
-    def mul_expr(self, children, _):
+    def mul_expr(self, meta, children):
         if len(children) == 1 and isinstance(children[0], _ARITHMETIC_TYPES):
             return children[0]
         elif len(children) == 3:
@@ -440,7 +496,7 @@ class GAMSTransformer(Transformer):
         else:
             raise NotImplementedError
 
-    def pow_expr(self, children, _):
+    def pow_expr(self, meta, children):
         if len(children) == 1 and isinstance(children[0], _ARITHMETIC_TYPES):
             return children[0]
         elif len(children) == 3:
@@ -450,7 +506,7 @@ class GAMSTransformer(Transformer):
         else:
             raise NotImplementedError
 
-    def indexed_operation(self, children, _):
+    def indexed_operation(self, meta, children):
 
         _indexed_expression_dict = {
             'summation': SumExpression,
@@ -471,9 +527,9 @@ class GAMSTransformer(Transformer):
             else:
                 raise NotImplementedError
 
-    def expression(self, children, _):
+    def expression(self, meta, children):
 
-        # func_expression, value, symbol[suffix], compiler_variable, quoted_string, expression
+        # func_expression, value, symbol[suffix], cli_param, quoted_string, expression
         if len(children) == 1:
             c = children[0]
             # value
@@ -483,7 +539,7 @@ class GAMSTransformer(Transformer):
             if isinstance(c, Symbol):
                 return c
             # expression already processed
-            if isinstance(c, (UnaryExpression, BinaryExpression, ArithmeticExpression, SumExpression, SetMaxExpression, SetMinExpression)):
+            if isinstance(c, (FuncExpression, BinaryExpression, ArithmeticExpression, SumExpression, SetMaxExpression, SetMinExpression)):
                 return c
             else:
                 raise NotImplementedError
@@ -501,14 +557,14 @@ class GAMSTransformer(Transformer):
             return BinaryExpression(*children)
         raise NotImplementedError
 
-    def index_list(self, children, _):
+    def index_list(self, meta, children):
         # `children` should be a list of indices
         return children
 
-    def table(self, children, _):
+    def table(self, meta, children):
         return children[0]
 
-    def table_data(self, children, _):
+    def table_data(self, meta, children):
         data = {}
         list_j = children[0].children
         len_j = len(list_j)
@@ -525,12 +581,12 @@ class GAMSTransformer(Transformer):
 
         return data
 
-    def macro(self, children, meta):
+    def macro(self, meta, children):
         option = children[0].value
         args = children[1].value
         return Macro(option, args, meta)
 
-    def table_definition(self, children, meta):
+    def table_definition(self, meta, children):
 
         symbol = children[0]
         data = None
@@ -544,28 +600,33 @@ class GAMSTransformer(Transformer):
 
     # rules not implemented yet ------------------------------------------------
 
-    def quoted_string(self, children, _):
+    def quoted_string(self, meta, children):
         raise NotImplementedError
 
-    def operator_indexed(self, children, _):
+    def operator_indexed(self, meta, children):
         raise NotImplementedError
 
-    def operator_expression(self, children, _):
+    def operator_expression(self, meta, children):
         raise NotImplementedError
 
-    def operator_logical(self, children, _):
+    def operator_logical(self, meta, children):
         raise NotImplementedError
 
-    def operator_relation(self, children, _):
+    def operator_relation(self, meta, children):
         raise NotImplementedError
 
-    def func_expression(self, children, _):
-        return UnaryExpression(*children)
+    def func_expression(self, meta, children):
+        operator = children[0]
+        if isinstance(children[1], Tree) and children[1].data == 'func_arguments':
+            operands = children[1].children
+        else:
+            operands = children[1]
+        return FuncExpression(operator, operands)
 
-    def index_element(self, children, _):
+    def index_element(self, meta, children):
         raise NotImplementedError
 
-    def compiler_variable(self, children, _):
+    def cli_param(self, meta, children):
         raise NotImplementedError
 
     # helper methods -----------------------------------------------------------

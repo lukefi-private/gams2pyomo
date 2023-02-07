@@ -1,0 +1,1 @@
+Acronym Monday, Tuesday, Wednesday, Thursday, Friday;
