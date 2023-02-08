@@ -73,3 +73,10 @@ will not be identified.
 - 
 ### Supported dollar control options
 - `$onPut`, `$offPut`
+
+## License
+Distributed under the MIT License.
+
+## Acknowledgements
+This repo was forked from [GAMS parser](https://github.com/anderson-optimization/gams-parser),
+whose grammar file (`gams.lark`) serves as an important basis for this project.
