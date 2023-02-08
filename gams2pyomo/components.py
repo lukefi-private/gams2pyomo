@@ -785,7 +785,6 @@ class IfStatement():
         for s in self.statement:
             if isinstance(s, Assignment):
                 res += s.assemble(container, _indent)
-                # res += '\n'
             else:
                 raise NotImplementedError
 
@@ -807,7 +806,6 @@ class IfStatement():
             for s in self.else_statement:
                 if isinstance(s, (Assignment, AbortStatement)):
                     res += s.assemble(container, _indent)
-                    # res += '\n'
                 else:
                     raise NotImplementedError
             ...
@@ -816,9 +814,9 @@ class IfStatement():
 
 
 class LoopStatement():
-    def __init__(self, index_item: str, conditional, statement, meta):
+    def __init__(self, index_item: str, conditional, statements, meta):
 
-        self.index_item, self.conditional, self.statement = index_item, conditional, statement
+        self.index_item, self.conditional, self.statements = index_item, conditional, statements
         self.lines = (meta.line, meta.end_line)
 
     def assemble(self, container: ComponentContainer, _indent='', **kwargs):
@@ -848,9 +846,12 @@ class LoopStatement():
             _indent += '\t'
 
         # statement(s)
-        for s in self.statement:
-            if isinstance(s, (Assignment, LoopStatement)):
+        for s in self.statements:
+            # TODO: add a list of all assemble-able statement classes
+            if isinstance(s, (Assignment, LoopStatement, BreakStatement, ContinueStatement)):
                 res += s.assemble(container, _indent)
+            elif isinstance(s, str):
+                res += _indent + s + _NL
             else:
                 raise NotImplementedError
 
@@ -957,6 +958,40 @@ class ForStatement():
                 msg += f"Step: Transforming for loop, statement: {s}"
                 logger.error(msg)
                 raise e
+
+        return res
+
+
+class BreakStatement():
+    def __init__(self, meta, conditional):
+        self.conditional = conditional
+        self.lines = (meta.line, meta.end_line)
+
+    def assemble(self, container: ComponentContainer, _indent='', **kwargs):
+        res = ''
+
+        if self.conditional:
+            res += _indent + 'if ' + self.conditional.assemble(container, _indent) + ":" + _NL
+            _indent += '\t'
+
+        res += _indent + 'break' + _NL
+
+        return res
+
+
+class ContinueStatement():
+    def __init__(self, meta, conditional):
+        self.conditional = conditional
+        self.lines = (meta.line, meta.end_line)
+
+    def assemble(self, container: ComponentContainer, _indent='', **kwargs):
+        res = ''
+
+        if self.conditional:
+            res += _indent + 'if ' + self.conditional.assemble(container, _indent) + ":" + _NL
+            _indent += '\t'
+
+        res += _indent + 'continue' + _NL
 
         return res
 
@@ -1104,6 +1139,22 @@ class FuncExpression():
                 res = f'round({o[0].assemble(container, _indent)}, {o[1]})'
             else:  # decimal not given
                 res = f'round({o[0].assemble(container, _indent)})'
+        elif self.operator.data == 'fn_sameas':
+            op_0 = self.operands[0]
+            op_1 = self.operands[1]
+
+            if isinstance(op_0, (str, float, int)):
+                res = str(op_0)
+            else:
+                res = op_0.assemble(container, _indent)
+
+            res += ' == '
+            if isinstance(op_1, (str, float, int)):
+                res += str(op_1)
+            else:
+                res += op_1.assemble(container, _indent)
+
+            return res
         else:
             msg = "The operator has not been implemented: "
             msg += self.operator.data
@@ -1328,7 +1379,7 @@ class Macro():
             model_title = self.args
             return ''
         else:
-            raise NotImplementedError
+            return NotImplementedError(f"The dollar control option '{self.option}' is not translated.")
 
 _ASSEMBLE_TYPES = (Symbol, SumExpression, BinaryExpression,
                    ArithmeticExpression, FuncExpression, SetMaxExpression,

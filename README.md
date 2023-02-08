@@ -67,6 +67,7 @@ will not be identified.
 ### GAMS commands that will not be translated
 - function import
 - `put`
+- acronym definition
 
 ### Supported suffices
 - 

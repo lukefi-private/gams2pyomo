@@ -23,7 +23,7 @@ options = {}
 _NON_DEF_STATEMENT_TYPES = \
     (EquationDefinition, ModelDefinition, SolveStatement, Assignment,
     Definition, IfStatement, LoopStatement, AbortStatement, Alias, Display,
-    Option, Macro, ForStatement, RepeatStatement, WhileStatement)
+    Option, Macro, ForStatement, RepeatStatement, WhileStatement, BreakStatement, ContinueStatement)
 _STATEMENT_TYPES = (Definition, ) + _NON_DEF_STATEMENT_TYPES
 _ARITHMETIC_TYPES = (Symbol, int, float, FuncExpression,
                      ArithmeticExpression, SetMinExpression, SetMaxExpression, SumExpression)
@@ -67,7 +67,11 @@ class GAMSTransformer(Transformer):
             try:
                 # non-definition statements
                 if isinstance(statement, _NON_DEF_STATEMENT_TYPES):
-                    res += statement.assemble(container)
+                    _res = statement.assemble(container)
+                    if isinstance(_res, str):
+                        res += _res
+                    else:
+                        raise _res
 
                 # definition lists
                 elif isinstance(statement, list):
@@ -88,6 +92,9 @@ class GAMSTransformer(Transformer):
                     comment_block = statement.value[8:-8]
                     res += f'\n"""{comment_block}"""\n\n'
 
+                # handle returned exceptions
+                elif isinstance(statement, Exception):
+                    raise statement
                 else:
                     raise NotImplementedError(f"failed to assemble type {type(statement)} at root node.")
             except Exception as e:
@@ -100,7 +107,10 @@ class GAMSTransformer(Transformer):
                     error_msg += f"statement location: {loc}.\n"
                 error_msg += f"An exception of type {type(e).__name__} occurred."
                 if e.args:
-                    error_msg += f"Arguments: {e.args!r}\n"
+                    if len(e.args) > 1:
+                        error_msg += f" Arguments: {e.args!r}\n"
+                    else:
+                        error_msg += f" Argument: {e.args[0]!r}\n"
                 logger.error(error_msg)
 
         # check if there are comments at the end
@@ -171,10 +181,20 @@ class GAMSTransformer(Transformer):
         return WhileStatement(conditional, statements, meta)
 
     def break_st(self, meta, children):
-        raise NotImplementedError
+        conditional = None
+        for c in children:
+            # neglect break times
+            if isinstance(c, Tree) and c.data == 'break_times':
+                pass
+            else:
+                conditional = c.children[0]
+        return BreakStatement(meta, conditional)
 
     def continue_st(self, meta, children):
-        raise NotImplementedError
+        conditional = None
+        if children:
+            conditional = children[0].children[0]
+        return ContinueStatement(meta, conditional)
 
     def option(self, meta, children):
         name = children[0]
@@ -311,14 +331,14 @@ class GAMSTransformer(Transformer):
         index_item = children[0]
 
         condition = None
-        statement = []
+        statements = []
 
         for child in children[1:]:
             if isinstance(child, Tree) and child.data == 'conditional':
                 condition = child
             else:
-                statement.append(child)
-        return LoopStatement(index_item, condition, statement, meta)
+                statements.append(child)
+        return LoopStatement(index_item, condition, statements, meta)
 
     def abort_st(self, meta, children):
         return AbortStatement(children, meta)
@@ -533,7 +553,7 @@ class GAMSTransformer(Transformer):
         if len(children) == 1:
             c = children[0]
             # value
-            if isinstance(c, (float, int)):
+            if isinstance(c, (float, int, str)):
                 return c
             # symbol
             if isinstance(c, Symbol):
@@ -600,8 +620,16 @@ class GAMSTransformer(Transformer):
 
     # rules not implemented yet ------------------------------------------------
 
+
+    def func_import(self, _, __):
+        return NotImplementedError("Function import is not translated.")
+
     def quoted_string(self, meta, children):
-        raise NotImplementedError
+        res = children[0].value
+        for c in children[1:-1]:
+            res += c
+        res += children[-1].value
+        return res
 
     def operator_indexed(self, meta, children):
         raise NotImplementedError
@@ -617,7 +645,7 @@ class GAMSTransformer(Transformer):
 
     def func_expression(self, meta, children):
         operator = children[0]
-        if isinstance(children[1], Tree) and children[1].data == 'func_arguments':
+        if isinstance(children[1], Tree) and hasattr(children[1], 'data') and children[1].data == 'func_arguments':
             operands = children[1].children
         else:
             operands = children[1]
@@ -628,6 +656,9 @@ class GAMSTransformer(Transformer):
 
     def cli_param(self, meta, children):
         raise NotImplementedError
+
+    def acronym_def(self, meta, children):
+        return NotImplementedError("Acronym definition is not translated.")
 
     # helper methods -----------------------------------------------------------
 
@@ -669,7 +700,7 @@ class GAMSTransformer(Transformer):
                 res += '# ' + comment + '\n'
             return res
 
-        raise NotImplementedError
+        return res
 
     def import_f_name(self, f_name):
         """
