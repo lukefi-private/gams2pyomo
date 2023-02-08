@@ -452,11 +452,19 @@ class GAMSTransformer(Transformer):
             else:
                 raise NotImplementedError
 
-        # negate expression/conditional expression
+        # negate expression/conditional expression/minus expression
         elif len(children) == 2:
 
             if isinstance(children[1], Tree) and children[1].data == 'conditional':
-                return ConditionalExpression(*children)
+                return ConditionalExpression(*children, meta)
+            elif isinstance(children[0], Tree) and children[0].data == 'negate':
+                children[1].negate = True
+                return children[1]
+            elif isinstance(children[0], Tree) and children[0].data == 'minus':
+                if isinstance(children[1], (int, float)):
+                    return - children[1]
+                children[1].minus = True
+                return children[1]
             else:
                 raise NotImplementedError
 
@@ -537,7 +545,7 @@ class GAMSTransformer(Transformer):
             operands = children[1].children
         else:
             operands = children[1]
-        return FuncExpression(operator, operands)
+        return FuncExpression(operator, operands, meta)
 
     def index_element(self, meta, children):
         raise NotImplementedError

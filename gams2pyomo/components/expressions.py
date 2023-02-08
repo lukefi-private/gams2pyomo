@@ -4,10 +4,11 @@ from .util import find_alias
 
 class FuncExpression(BasicElement):
 
-    def __init__(self, operator, operands):
+    def __init__(self, operator, operands, meta):
 
         self.operator = operator
         self.operands = operands
+        self.lines = (meta.line, meta.end_line)
 
     def assemble(self, container, _indent='', **kwargs):
 
@@ -42,12 +43,20 @@ class FuncExpression(BasicElement):
                 res += str(op_1)
             else:
                 res += op_1.assemble(container, _indent)
-
-            return res
+        elif self.operator.data == 'fn_max':
+            res = 'max('
+            res += ', '.join([o.assemble(container, _indent) for o in self.operands])
+            res += ')'
         else:
             msg = "The operator has not been implemented: "
             msg += self.operator.data
             raise NotImplementedError(msg)
+
+        if self.minus:
+            res = '- ' + res
+
+        if self.negate:
+            res = 'not ' + res
 
         return res
 
@@ -88,6 +97,9 @@ class BinaryExpression(BasicElement):
         if not top_level:
             # add parenthesis around the expression
             res += '('
+
+        if self.minus:
+            res += '- '
 
         if isinstance(self.operand_1, (int, float)):
             res += str(self.operand_1)
@@ -142,6 +154,9 @@ class ArithmeticExpression(BasicElement):
             # add parenthesis around the expression
             res += '('
 
+        if self.minus:
+            res += '- '
+
         if isinstance(self.operand_1, (int, float)):
             res += str(self.operand_1)
         else:
@@ -180,9 +195,13 @@ class ArithmeticExpression(BasicElement):
 
 class ConditionalExpression(BasicElement):
 
-    def __init__(self, expression, condition):
+    def __init__(self, expression, condition, meta):
         self.expression = expression
         self.condition = condition
+        self.lines = (meta.line, meta.end_line)
+
+    def assemble(self, container, _indent, **kwargs):
+        raise NotImplementedError
 
 
 class IndexedExpression(BasicElement):
@@ -196,7 +215,13 @@ class IndexedExpression(BasicElement):
 class SumExpression(IndexedExpression, BasicElement):
 
     def assemble(self, container, _indent='', **kwargs):
-        res = 'sum('
+
+        if self.minus:
+            res = '- '
+        else:
+            res = ''
+
+        res += 'sum('
 
         try:
             res += self.exp.assemble(container, _indent)
@@ -221,7 +246,12 @@ class SetMaxExpression(IndexedExpression, BasicElement):
         global value_suffix
         value_suffix = True
 
-        res = 'max(['
+        if self.minus:
+            res = '- '
+        else:
+            res = ''
+
+        res += 'max(['
 
         try:
             res += self.exp.assemble(container, _indent)
@@ -249,7 +279,12 @@ class SetMinExpression(IndexedExpression, BasicElement):
         global value_suffix
         value_suffix = True
 
-        res = 'min(['
+        if self.minus:
+            res = '- '
+        else:
+            res = ''
+
+        res += 'min(['
 
         try:
             res += self.exp.assemble(container, _indent)

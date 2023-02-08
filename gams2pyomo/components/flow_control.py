@@ -97,6 +97,8 @@ class LoopStatement(BasicElement):
 
         _idx, _set = self.index_item, self.index_item.upper()
 
+        container.inner_scope.add(_idx)
+
         res = ''
 
         # loop lines
@@ -128,6 +130,8 @@ class LoopStatement(BasicElement):
                 res += _indent + s + _NL
             else:
                 raise NotImplementedError
+
+        container.inner_scope.clear()
 
         return res
 
@@ -216,6 +220,8 @@ class ForStatement(BasicElement):
 
         _idx = self.symbol.name
 
+        container.inner_scope.add(_idx)
+
         res = ''
 
         # loop lines
@@ -232,6 +238,8 @@ class ForStatement(BasicElement):
                 msg += f"Step: Transforming for loop, statement: {s}"
                 logger.error(msg)
                 raise e
+
+        container.inner_scope.clear()
 
         return res
 

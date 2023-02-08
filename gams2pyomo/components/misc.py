@@ -144,7 +144,7 @@ class Macro(BasicElement):
     def assemble(self, container, _indent='', **kwargs):
 
         if self.option == 'title':
-            container.model_title = self.args
+            container.model_title = self.args.strip()
             return ''
         else:
             return NotImplementedError(f"The dollar control option '{self.option}' is not translated.")

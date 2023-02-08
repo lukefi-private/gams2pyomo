@@ -58,6 +58,8 @@ class ComponentContainer(object):
 
         self.required_packages = set()
 
+        self.inner_scope = set()
+
     def assemble(self):
 
         logger.info("Assembling...")
@@ -159,7 +161,7 @@ class ComponentContainer(object):
         header += "m = ConcreteModel("
         if len(self.model_title) > 0:
             header += f"name='{self.model_title}'"
-        header += ")"
+        header += ")" + _NL
 
         return header
 
@@ -254,6 +256,14 @@ class ComponentContainer(object):
         for i in self.symbols:
             for j in self.symbols[i]:
                 yield j
+
+    def check_symbol(self, s):
+        for i in self.symbols:
+            for j in self.symbols[i]:
+                if s == j:
+                    return True
+
+        return False
 
     # def __repr__(self):
     #     output = ["** model **", "\nsymbols:"]

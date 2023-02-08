@@ -7,9 +7,12 @@ _NL = '\n'
 
 logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
 logger = logging.getLogger('gams_translator.components')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 
 class BasicElement:
+
+    negate = False
+    minus = False
 
     @abstractclassmethod
     def assemble(self, container, _indent='', **kwargs):
@@ -42,27 +45,51 @@ class Symbol(BasicElement):
                 raise NotImplementedError
 
     def assemble(self, container, _indent='', at_begin=False, **kwargs):
+        """
+        It is possible that the parser cannot differentiate a specific index and
+        a set. Therefore, it is necessary to check with the container if the
+        index has been defined.
+        """
 
         if at_begin:
             res = _indent
         else:
             res = ''
-        res += _PREFIX
 
-        res += self.name
+        if self.name in container.inner_scope:
+            res += self.name
+        else:
+            res += _PREFIX + self.name
+
         if self.index_list:
+            res += '['
             _idx = self.index_list[0]
             if isinstance(_idx, SpecialIndex):
-                res += f'[{_idx.assemble(container, _indent):}'
+                res += f'{_idx.assemble(container, _indent):}'
+            elif _idx.upper() in container.set:
+                res += f'{_idx}'
             else:
-                _idx = find_alias(_idx, container)
-                res += f'[{_idx}'
-            for _idx in self.index_list[1:]:
-                if isinstance(_idx, SpecialIndex):
-                    res += f', {_idx.assemble(container, _indent)}'
+                __idx = find_alias(_idx, container)
+                # no alias, not defined, treat as specific index
+                if __idx == _idx:
+                    res += f"'{_idx}'"
+                # alias found
                 else:
-                    _idx = find_alias(_idx, container)
-                    res += f', {_idx}'
+                    res += f"{__idx}"
+            for _idx in self.index_list[1:]:
+                res += ', '
+                if isinstance(_idx, SpecialIndex):
+                    res += f'{_idx.assemble(container, _indent)}'
+                elif _idx.upper() in container.set:
+                    res += f'{_idx}'
+                else:
+                    __idx = find_alias(_idx, container)
+                    # no alias, not defined, treat as specific index
+                    if __idx == _idx:
+                        res += f"'{_idx}'"
+                    # alias found
+                    else:
+                        res += f"{__idx}"
             res += ']'
 
         # add .value suffix
@@ -71,13 +98,22 @@ class Symbol(BasicElement):
             if value_suffix:
                 res += '.value'
 
+        if self.minus:
+            res = '- ' + res
+        if self.negate:
+            res = 'not ' + res
+
         return res
 
-    # def __repr__(self):
-    #     if self.index_list:
-    #         return '__{name}{index_list}__'.format(name=self.name, index_list=self.index_list)
-    #     else:
-    #         return '__{name}__'.format(name=self.name)
+    def __repr__(self):
+        res = self.name
+        if self.index_list:
+            res += '['
+            res += ', '.join(i for i in self.index_list)
+            res += ']'
+        if self.suffix:
+            res += '.' + self.suffix
+        return res
 
 
 class EquationDefinition(BasicElement):
@@ -155,9 +191,9 @@ class EquationDefinition(BasicElement):
                 for _idx in self.index_list:
                     if _idx == leap_lag_var:
                         if leap_lag_op == 'leap':
-                            res += f'list({_PREFIX +_idx.upper()})[{leap_lag_val}:], '
-                        else:  # 'lag'
                             res += f'list({_PREFIX +_idx.upper()})[:-{leap_lag_val}], '
+                        else:  # 'lag'
+                            res += f'list({_PREFIX +_idx.upper()})[{leap_lag_val}:], '
                     else:
                         res += f'{_PREFIX +_idx.upper()}, '
             res += f'rule={self.name})' + _NL
@@ -230,7 +266,7 @@ class SolveStatement(BasicElement):
 
         # declare objective
         # TODO: what if _obj_ is used
-        res = f'm_{self.name}._obj_ = Objective(rule={_PREFIX + self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
+        res = f'm_{self.name}._obj_ = Objective(rule=m_{self.name}.{self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
 
         # assign solver via model type
         if self.type.lower() in container.options:
@@ -273,10 +309,7 @@ class Assignment(BasicElement):
     def assemble(self, container, _indent='', **kwargs):
 
         if self.symbol.suffix:
-            try:
-                return self._assemble_set_attribute(container, self.symbol.suffix, _indent)
-            except Exception:
-                return Exception
+            return self._assemble_set_attribute(container, self.symbol.suffix, _indent)
         else:
             return self._assemble_basic(container, _indent)
 
@@ -474,7 +507,7 @@ class Definition(BasicElement):
         # data
         if data:
             # when scalar is declared as parameter
-            if len(data) == 1:
+            if len(data) == 1 and isinstance(data, list):
                 res += f", initialize={data[0]}"
             else:
                 res += f", initialize={data}"
