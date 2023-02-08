@@ -1,8 +1,8 @@
 from lark import Tree
-from .basic import _PREFIX, logger
+from .basic import _PREFIX, logger, BasicElement
 from .util import find_alias
 
-class FuncExpression():
+class FuncExpression(BasicElement):
 
     def __init__(self, operator, operands):
 
@@ -17,6 +17,7 @@ class FuncExpression():
         elif self.operator.data == 'fn_ord':
             res = f'list({_PREFIX + o.name.upper()}).index({o.name}) + 1'
         elif self.operator.data == 'fn_errorf':
+            container.required_packages.add('math')
             res = f'(1 + math.erf(({o.assemble(container, _indent)}) / math.sqrt(2))) / 2'
         elif self.operator.data == 'fn_sqrt':
             res = f'({o.assemble(container, _indent)}) ** 0.5'
@@ -51,7 +52,7 @@ class FuncExpression():
         return res
 
 
-class BinaryExpression():
+class BinaryExpression(BasicElement):
 
     operator_dict = {
         'addition': '+',
@@ -123,7 +124,7 @@ class BinaryExpression():
         return res
 
 
-class ArithmeticExpression():
+class ArithmeticExpression(BasicElement):
 
     top_level_operator = ['+', '-']
 
@@ -177,14 +178,14 @@ class ArithmeticExpression():
         return res
 
 
-class ConditionalExpression():
+class ConditionalExpression(BasicElement):
 
     def __init__(self, expression, condition):
         self.expression = expression
         self.condition = condition
 
 
-class IndexedExpression():
+class IndexedExpression(BasicElement):
 
     def __init__(self, idx, exp):
 
@@ -192,7 +193,7 @@ class IndexedExpression():
         self.exp = exp
 
 
-class SumExpression(IndexedExpression):
+class SumExpression(IndexedExpression, BasicElement):
 
     def assemble(self, container, _indent='', **kwargs):
         res = 'sum('
@@ -212,7 +213,7 @@ class SumExpression(IndexedExpression):
         return res
 
 
-class SetMaxExpression(IndexedExpression):
+class SetMaxExpression(IndexedExpression, BasicElement):
 
     def assemble(self, container, _indent='', **kwargs):
 
@@ -240,7 +241,7 @@ class SetMaxExpression(IndexedExpression):
         return res
 
 
-class SetMinExpression(IndexedExpression):
+class SetMinExpression(IndexedExpression, BasicElement):
 
     def assemble(self, container, _indent='', **kwargs):
 

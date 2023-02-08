@@ -72,7 +72,7 @@ will not be identified.
 ### Supported suffices
 - 
 ### Supported dollar control options
-- `$onPut`, `$offPut`
+- `$title`
 
 ## License
 Distributed under the MIT License.

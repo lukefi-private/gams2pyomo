@@ -1,5 +1,5 @@
 from lark import Token
-from .basic import Definition, ModelDefinition, logger, SolveStatement, Assignment, EquationDefinition, Symbol
+from .basic import Definition, ModelDefinition, logger, SolveStatement, Assignment, EquationDefinition, Symbol, _NL
 from .expressions import *
 from .flow_control import *
 from .misc import Display, Option, Macro
@@ -12,18 +12,6 @@ _NON_DEF_STATEMENT_TYPES = \
 _STATEMENT_TYPES = (Definition, ) + _NON_DEF_STATEMENT_TYPES
 _ARITHMETIC_TYPES = (Symbol, int, float, FuncExpression,
                      ArithmeticExpression, SetMinExpression, SetMaxExpression, SumExpression)
-
-HEADING_1 = \
-r"""from pyomo.environ import *
-import math
-
-
-m = ConcreteModel("""
-
-HEADING_2 = r""")
-options = {}
-
-"""
 
 
 class ComponentContainer(object):
@@ -66,11 +54,13 @@ class ComponentContainer(object):
 
         self.root_statements = []
 
-        self._with_head = True
+        self.model_title = ''
+
+        self.required_packages = set()
 
     def assemble(self):
 
-        logger.info("Transforming at the root node...")
+        logger.info("Assembling...")
 
         res = ''
 
@@ -140,29 +130,38 @@ class ComponentContainer(object):
                 comment = self.comments.pop(0)[1]
                 res += '# ' + comment + '\n'
 
-        # add default heading code
-        if self._with_head:
-            if 'model_title' in globals():
-                global model_title
-                res = HEADING_1 + f"name={model_title}" + HEADING_2 + res
-            else:
-                res = HEADING_1 + HEADING_2 + res
-
         # add header
-        header = "# " + "-" * 15 + \
-            " THIS SCRIPT WAS AUTO-GENERATED FROM GAMS2PYOMO " + "-" * 15 + "\n"
-        length = len(self.f_name)
-        if length > 0:
-            total_l = 19 + length
-            left_l = (80 - total_l) // 2
-            right_l = (80 - total_l) - left_l
-            header += "# " + "-" * left_l + \
-                f" FILE SOURCE: '{self.f_name}' " + "-" * right_l + "\n\n"
-        res = header + res
+        res = self._assemble_header() + res
 
         logger.info("Done.")
 
         return res
+
+    def _assemble_header(self):
+
+        # auto-generated sign
+        header = "# " + "-" * 15 + " THIS SCRIPT WAS AUTO-GENERATED FROM GAMS2PYOMO " + "-" * 15 + "\n"
+        f_name_len = len(self.f_name)
+        if f_name_len > 0:
+            total_l = 19 + f_name_len
+            left_l = (80 - total_l) // 2
+            right_l = (80 - total_l) - left_l
+            header += "# " + "-" * left_l + f" FILE SOURCE: '{self.f_name}' " + "-" * right_l + "\n\n"
+
+        # package import
+        header += r"from pyomo.environ import *" + _NL
+
+        for p in self.required_packages:
+            header += rf"import {p}" + _NL
+        header += "\n\n"
+
+        # model declaration
+        header += "m = ConcreteModel("
+        if len(self.model_title) > 0:
+            header += f"name='{self.model_title}'"
+        header += ")"
+
+        return header
 
     def add_root_statements(self, statements):
         self.root_statements = statements

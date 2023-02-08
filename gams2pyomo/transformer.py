@@ -3,7 +3,7 @@ from typing import List
 from lark import Transformer, Tree, Token, v_args
 from .components import *
 from .util import sequence_set
-from .components.container import _NON_DEF_STATEMENT_TYPES, _STATEMENT_TYPES, _ARITHMETIC_TYPES
+from .components.container import _ARITHMETIC_TYPES
 
 logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
 logger = logging.getLogger('gams_translator.transformer')
@@ -547,5 +547,3 @@ class GAMSTransformer(Transformer):
 
     def acronym_def(self, meta, children):
         return NotImplementedError("Acronym definition is not translated.")
-
-    # helper methods -----------------------------------------------------------

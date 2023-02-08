@@ -1,6 +1,6 @@
-from lark import Tree
 from .util import find_alias
 import logging, logging.config
+from abc import abstractclassmethod
 
 _PREFIX = 'm.'
 _NL = '\n'
@@ -9,8 +9,13 @@ logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=Fals
 logger = logging.getLogger('gams_translator.components')
 logger.setLevel(logging.INFO)
 
+class BasicElement:
 
-class Symbol(Tree):
+    @abstractclassmethod
+    def assemble(self, container, _indent='', **kwargs):
+        pass
+
+class Symbol(BasicElement):
     """
     The class for symbols.
 
@@ -75,7 +80,7 @@ class Symbol(Tree):
     #         return '__{name}__'.format(name=self.name)
 
 
-class EquationDefinition:
+class EquationDefinition(BasicElement):
 
     def __init__(self, name, index_list, conditional, lhs, eq_sign, rhs, meta):
         self.name, self.index_list, self.conditional, self.lhs, self.eq_sign, self.rhs = name, index_list, conditional, lhs, eq_sign, rhs
@@ -165,7 +170,7 @@ class EquationDefinition:
             return res
 
 
-class ModelDefinition():
+class ModelDefinition(BasicElement):
     """
     The class for defined optimization models in the GAMS code. A single .gms
     file can define multiple optimization models.
@@ -206,7 +211,7 @@ class ModelDefinition():
             return res
 
 
-class SolveStatement():
+class SolveStatement(BasicElement):
     """
     The class for "solve" statement in the GAMS code.
     """
@@ -255,7 +260,7 @@ class SolveStatement():
         return res
 
 
-class Assignment():
+class Assignment(BasicElement):
     """
     The class for assignment statement.
     """
@@ -369,7 +374,7 @@ class Assignment():
         return res
 
 
-class Definition:
+class Definition(BasicElement):
     """
     Definition of set, parameter, scalar, variable, equation, table, or alias.
     """
@@ -528,23 +533,23 @@ class Definition:
             return res
 
 
-class SymbolId():
-    """
-    The class for symbol IDs.
-    """
+# class SymbolId(BasicElement):
+#     """
+#     The class for symbol IDs.
+#     """
 
-    def __init__(self, sid):
-        logger.debug("Creating Symbol ID {}".format(sid))
-        self.sid = str(sid)
+#     def __init__(self, sid):
+#         logger.debug("Creating Symbol ID {}".format(sid))
+#         self.sid = str(sid)
 
-    def __str__(self):
-        return self.sid
+#     def __str__(self):
+#         return self.sid
 
-    def __repr__(self):
-        return '*{sid}*'.format(sid=self.sid)
+#     def __repr__(self):
+#         return '*{sid}*'.format(sid=self.sid)
 
 
-class SpecialIndex():
+class SpecialIndex(BasicElement):
     """
     The class for special index, including lead, lag, circular_lead, and
     circular_lag.
