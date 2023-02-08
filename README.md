@@ -16,7 +16,7 @@ control options).
 
 ## Usage
 
-Below is a simple example script for using the tool.
+Below is a simple example script for using the tool (at the root directory).
 ```python
 # import the main class
 from gams2pyomo import GAMSTranslator
@@ -53,26 +53,49 @@ execution fails at different stages (including parsing and transformation).
 If you cannot manage to translate your GAMS code, the following tips may
 be helpful.
 
-1. Make sure that file is a legal GAMS file.
-2. Many execution statements/dollar control options/suffices will not be
+1. Make sure that file is a **legal GAMS file**.
+2. Many **execution statements/dollar control options/suffices** will not be
 translated and can potentially cause errors. See the list of supported
 statements below.
-3. GAMS is case-insensitive, but please make sure the keywords in your GAMS code
-follow certain rules. Typically the program is able to parse keywords in all
-small cases, all capital cases, or camel Cases. But irregular ones (e.g., `bReAk`)
-will not be identified.
-### GAMS commands that will be translated with limitations
-- `break`: argument will be omitted; will only break one loop
+3. Please end each statement with semicolon (`;`), even if it is the last one.
+4. Please make sure that the spelling of keywords are regular (e.g., in all
+small cases, all capital cases, or camel cases).
+Although GAMS is case-insensitive, it is challenging to parse irregular keywords
+(e.g., `bReAk`).
+5. Please make sure that all the data definitions are clear and precise.
+If the initial value of a parameter is not provided, then the tool will not
+provide a default value (e.g., 0) to it (like GAMS does).
+6. Be careful with special characters in symbols which may have different
+meanings in Python, e.g., dash (-), star (*), etc.
 
 ### GAMS commands that will not be translated
 - function import
-- `put`
+- `put` family
 - acronym definition
+- universal set (`*`)
+- dynamic set
+- end-of-line comments, in-line comments, outside margin comments, hidden comments
+
+### GAMS commands that will be translated with limitations
+- `table` definition: only basic formats of table definition is accepted for
+now. Special formats, especially usage of tab, can lead to errors.
+- `model` statement: limited ways of model definition are supported, including
+  - `all`
+  - list all equations
+- `alias`: there are only limited supports for alias lookup.
+Complicated alias usage is not support. E.g.,
+  ```gams
+  alias(i, ip);
+  darc(i, ip) = max(uarc(i, ip), uarc(ip, i));
+  ```
+- `break`: argument will be omitted; will only break one loop.
+
 
 ### Supported suffices
-- 
+- `.l`
+- `.lo`, `.up`, `.fx`
 ### Supported dollar control options
-- `$onPut`, `$offPut`
+- `$title`
 
 ## License
 Distributed under the MIT License.

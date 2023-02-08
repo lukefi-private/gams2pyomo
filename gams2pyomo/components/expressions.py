@@ -1,13 +1,14 @@
 from lark import Tree
-from .basic import _PREFIX, logger
+from .basic import _PREFIX, logger, BasicElement
 from .util import find_alias
 
-class FuncExpression():
+class FuncExpression(BasicElement):
 
-    def __init__(self, operator, operands):
+    def __init__(self, operator, operands, meta):
 
         self.operator = operator
         self.operands = operands
+        self.lines = (meta.line, meta.end_line)
 
     def assemble(self, container, _indent='', **kwargs):
 
@@ -17,6 +18,7 @@ class FuncExpression():
         elif self.operator.data == 'fn_ord':
             res = f'list({_PREFIX + o.name.upper()}).index({o.name}) + 1'
         elif self.operator.data == 'fn_errorf':
+            container.required_packages.add('math')
             res = f'(1 + math.erf(({o.assemble(container, _indent)}) / math.sqrt(2))) / 2'
         elif self.operator.data == 'fn_sqrt':
             res = f'({o.assemble(container, _indent)}) ** 0.5'
@@ -41,17 +43,25 @@ class FuncExpression():
                 res += str(op_1)
             else:
                 res += op_1.assemble(container, _indent)
-
-            return res
+        elif self.operator.data == 'fn_max':
+            res = 'max('
+            res += ', '.join([o.assemble(container, _indent) for o in self.operands])
+            res += ')'
         else:
             msg = "The operator has not been implemented: "
             msg += self.operator.data
             raise NotImplementedError(msg)
 
+        if self.minus:
+            res = '- ' + res
+
+        if self.negate:
+            res = 'not ' + res
+
         return res
 
 
-class BinaryExpression():
+class BinaryExpression(BasicElement):
 
     operator_dict = {
         'addition': '+',
@@ -88,6 +98,9 @@ class BinaryExpression():
             # add parenthesis around the expression
             res += '('
 
+        if self.minus:
+            res += '- '
+
         if isinstance(self.operand_1, (int, float)):
             res += str(self.operand_1)
         else:
@@ -123,7 +136,7 @@ class BinaryExpression():
         return res
 
 
-class ArithmeticExpression():
+class ArithmeticExpression(BasicElement):
 
     top_level_operator = ['+', '-']
 
@@ -140,6 +153,9 @@ class ArithmeticExpression():
         if not top_level:
             # add parenthesis around the expression
             res += '('
+
+        if self.minus:
+            res += '- '
 
         if isinstance(self.operand_1, (int, float)):
             res += str(self.operand_1)
@@ -177,14 +193,18 @@ class ArithmeticExpression():
         return res
 
 
-class ConditionalExpression():
+class ConditionalExpression(BasicElement):
 
-    def __init__(self, expression, condition):
+    def __init__(self, expression, condition, meta):
         self.expression = expression
         self.condition = condition
+        self.lines = (meta.line, meta.end_line)
+
+    def assemble(self, container, _indent, **kwargs):
+        raise NotImplementedError
 
 
-class IndexedExpression():
+class IndexedExpression(BasicElement):
 
     def __init__(self, idx, exp):
 
@@ -192,10 +212,16 @@ class IndexedExpression():
         self.exp = exp
 
 
-class SumExpression(IndexedExpression):
+class SumExpression(IndexedExpression, BasicElement):
 
     def assemble(self, container, _indent='', **kwargs):
-        res = 'sum('
+
+        if self.minus:
+            res = '- '
+        else:
+            res = ''
+
+        res += 'sum('
 
         try:
             res += self.exp.assemble(container, _indent)
@@ -212,7 +238,7 @@ class SumExpression(IndexedExpression):
         return res
 
 
-class SetMaxExpression(IndexedExpression):
+class SetMaxExpression(IndexedExpression, BasicElement):
 
     def assemble(self, container, _indent='', **kwargs):
 
@@ -220,7 +246,12 @@ class SetMaxExpression(IndexedExpression):
         global value_suffix
         value_suffix = True
 
-        res = 'max(['
+        if self.minus:
+            res = '- '
+        else:
+            res = ''
+
+        res += 'max(['
 
         try:
             res += self.exp.assemble(container, _indent)
@@ -240,7 +271,7 @@ class SetMaxExpression(IndexedExpression):
         return res
 
 
-class SetMinExpression(IndexedExpression):
+class SetMinExpression(IndexedExpression, BasicElement):
 
     def assemble(self, container, _indent='', **kwargs):
 
@@ -248,7 +279,12 @@ class SetMinExpression(IndexedExpression):
         global value_suffix
         value_suffix = True
 
-        res = 'min(['
+        if self.minus:
+            res = '- '
+        else:
+            res = ''
+
+        res += 'min(['
 
         try:
             res += self.exp.assemble(container, _indent)

@@ -1,9 +1,9 @@
 from typing import List
-from .basic import Assignment, _NL, _PREFIX, logger
+from .basic import Assignment, _NL, _PREFIX, logger, BasicElement
 from .expressions import BinaryExpression
 from .util import gams_arange
 
-class ElseIfStatement():
+class ElseIfStatement(BasicElement):
     def __init__(self, condition, statement):
 
         self.condition = condition
@@ -34,7 +34,7 @@ class ElseIfStatement():
         return res
 
 
-class IfStatement():
+class IfStatement(BasicElement):
     """
     The class for if statement.
     """
@@ -87,7 +87,7 @@ class IfStatement():
         return res
 
 
-class LoopStatement():
+class LoopStatement(BasicElement):
     def __init__(self, index_item: str, conditional, statements, meta):
 
         self.index_item, self.conditional, self.statements = index_item, conditional, statements
@@ -96,6 +96,8 @@ class LoopStatement():
     def assemble(self, container, _indent='', **kwargs):
 
         _idx, _set = self.index_item, self.index_item.upper()
+
+        container.inner_scope.add(_idx)
 
         res = ''
 
@@ -129,10 +131,12 @@ class LoopStatement():
             else:
                 raise NotImplementedError
 
+        container.inner_scope.clear()
+
         return res
 
 
-class RepeatStatement():
+class RepeatStatement(BasicElement):
     def __init__(self, conditional, statements, meta):
 
         self.conditional, self.statements = conditional, statements
@@ -168,7 +172,7 @@ class RepeatStatement():
         return res
 
 
-class WhileStatement():
+class WhileStatement(BasicElement):
     def __init__(self, conditional, statements, meta):
 
         self.conditional, self.statements = conditional, statements
@@ -201,7 +205,7 @@ class WhileStatement():
         return res
 
 
-class ForStatement():
+class ForStatement(BasicElement):
     def __init__(self, symbol, start_n, end_n, step, statements, meta):
 
         for_list = gams_arange(start_n, end_n, step)
@@ -215,6 +219,8 @@ class ForStatement():
     def assemble(self, container, _indent='', **kwargs):
 
         _idx = self.symbol.name
+
+        container.inner_scope.add(_idx)
 
         res = ''
 
@@ -233,10 +239,12 @@ class ForStatement():
                 logger.error(msg)
                 raise e
 
+        container.inner_scope.clear()
+
         return res
 
 
-class BreakStatement():
+class BreakStatement(BasicElement):
     def __init__(self, meta, conditional):
         self.conditional = conditional
         self.lines = (meta.line, meta.end_line)
@@ -253,7 +261,7 @@ class BreakStatement():
         return res
 
 
-class ContinueStatement():
+class ContinueStatement(BasicElement):
     def __init__(self, meta, conditional):
         self.conditional = conditional
         self.lines = (meta.line, meta.end_line)
@@ -270,7 +278,7 @@ class ContinueStatement():
         return res
 
 
-class AbortStatement():
+class AbortStatement(BasicElement):
     def __init__(self, descriptions, meta):
         self.descriptions = descriptions
         self.lines = (meta.line, meta.end_line)
@@ -280,4 +288,3 @@ class AbortStatement():
         for d in self.descriptions:
             res += _indent + f"raise ValueError('{d}')" + _NL
         return res
-

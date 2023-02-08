@@ -280,6 +280,7 @@ expression:   _LPAR expression _RPAR
 			| add_expr
 			| expression conditional
 			| negate expression
+			| minus expression
 			| value
 			| symbol
 			| cli_param
@@ -290,6 +291,7 @@ func_expression: (math_functions | string_functions | time_functions) _LPAR func
 ?func_arguments: expression (_COMMA expression)*
 
 negate: "not" | "NOT"
+?minus: "-"
 
 conditional: "$" expression
 
@@ -299,19 +301,20 @@ conditional: "$" expression
 symbol 			: symbol_name[suffix][symbol_index]
 symbol_index	: _LPAR index_list _RPAR
 index_list		: index_item (_COMMA index_item )*
-!index_item		: symbol_name
-				| symbol_element
-				| cli_param
-				| symbol_name "++" value -> circular_lead
+!index_item		: symbol_name "++" value -> circular_lead
 				| symbol_name "--" value -> circular_lag
 				| symbol_name "+" value -> lead
-				| symbol_name "-" value -> lag
+				| weak_symbol_name "-" value -> lag
+				| symbol_name
+				| symbol_element
+				| cli_param
 				| "*"
 symbol_range    : identifier "*" identifier
 symbol_id 		: identifier ("." identifier)*
 symbol_element  : _QUOTE identifier _QUOTE
 				| _QUOTE cli_param _QUOTE
 symbol_name		: identifier
+?weak_symbol_name: /[a-zA-Z][\w]*/ | SIGNED_NUMBER
 // ?identifier 	: WORD_IDENTIFIER|INTEGER
 // TODO: add underscore to identifier
 identifier 		: WORD_IDENTIFIER | SIGNED_NUMBER

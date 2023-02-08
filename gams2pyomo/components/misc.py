@@ -1,4 +1,4 @@
-from .basic import _NL, _PREFIX, logger
+from .basic import _NL, _PREFIX, logger, BasicElement
 
 # class IndexList(Tree):
 
@@ -59,7 +59,7 @@ from .basic import _NL, _PREFIX, logger
 #         return res
 
 
-class Alias():
+class Alias(BasicElement):
     def __init__(self, aliases, meta):
 
         self.aliases = aliases
@@ -71,7 +71,7 @@ class Alias():
         return ''
 
 
-class Display():
+class Display(BasicElement):
     def __init__(self, symbols, meta):
         self.symbols = symbols
         self.lines = (meta.line, meta.end_line)
@@ -106,7 +106,7 @@ class Display():
         return res
 
 
-class Option():
+class Option(BasicElement):
 
     def __init__(self, name, value, meta):
 
@@ -135,7 +135,7 @@ class Option():
         # return f"options['{self.name}'] = {v_string}" + _NL
 
 
-class Macro():
+class Macro(BasicElement):
 
     def __init__(self, option, args, meta):
         self.option, self.args = option, args
@@ -144,8 +144,7 @@ class Macro():
     def assemble(self, container, _indent='', **kwargs):
 
         if self.option == 'title':
-            global model_title
-            model_title = self.args
+            container.model_title = self.args.strip()
             return ''
         else:
             return NotImplementedError(f"The dollar control option '{self.option}' is not translated.")
