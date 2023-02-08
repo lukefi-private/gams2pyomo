@@ -1,5 +1,30 @@
+from lark import Token
+from .basic import Definition, ModelDefinition, logger, SolveStatement, Assignment, EquationDefinition, Symbol
+from .expressions import *
+from .flow_control import *
+from .misc import Display, Option, Macro
+from .misc import Alias
 
-from .basic import Definition, ModelDefinition
+_NON_DEF_STATEMENT_TYPES = \
+    (EquationDefinition, ModelDefinition, SolveStatement, Assignment,
+    Definition, IfStatement, LoopStatement, AbortStatement, Alias, Display,
+    Option, Macro, ForStatement, RepeatStatement, WhileStatement, BreakStatement, ContinueStatement)
+_STATEMENT_TYPES = (Definition, ) + _NON_DEF_STATEMENT_TYPES
+_ARITHMETIC_TYPES = (Symbol, int, float, FuncExpression,
+                     ArithmeticExpression, SetMinExpression, SetMaxExpression, SumExpression)
+
+HEADING_1 = \
+r"""from pyomo.environ import *
+import math
+
+
+m = ConcreteModel("""
+
+HEADING_2 = r""")
+options = {}
+
+"""
+
 
 class ComponentContainer(object):
     """The class for storing optimization components from GAMS code.
@@ -38,6 +63,155 @@ class ComponentContainer(object):
         self.loop_st = []
         self.abort_st = []
         self.display = []
+
+        self.root_statements = []
+
+        self._with_head = True
+
+    def assemble(self):
+
+        logger.info("Transforming at the root node...")
+
+        res = ''
+
+        # assemble each statement
+        for statement in self.root_statements:
+
+            # insert comments before the statements
+            res += self.insert_comment(statement)
+
+            # record alias
+            if isinstance(statement, Alias):
+                self.add_alias(statement.aliases)
+
+            # assemble each statement
+            try:
+                # non-definition statements
+                if isinstance(statement, _NON_DEF_STATEMENT_TYPES):
+                    _res = statement.assemble(self)
+                    if isinstance(_res, str):
+                        res += _res
+                    else:
+                        raise _res
+
+                # definition lists
+                elif isinstance(statement, list):
+
+                    # go through each definition
+                    for _c in statement:
+                        if isinstance(_c, (Definition, ModelDefinition)):
+                            res += _c.assemble(self)
+
+                            # record symbols
+                            self.add_symbol(_c)
+                        else:
+                            raise NotImplementedError(f"failed to assemble type {type(_c)} in the definition list at root node.")
+
+                # comment block
+                elif isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
+                    # `[8:-8]`: remove `$ontext\n` and `$offtext`
+                    comment_block = statement.value[8:-8]
+                    res += f'\n"""{comment_block}"""\n\n'
+
+                # handle returned exceptions
+                elif isinstance(statement, Exception):
+                    raise statement
+                else:
+                    raise NotImplementedError(f"failed to assemble type {type(statement)} at root node.")
+            except Exception as e:
+                error_msg = "The statement cannot be translated into Pyomo. It is skipped in the generated code.\n"
+                if hasattr(statement, 'lines'):
+                    if statement.lines[0] == statement.lines[1]:
+                        loc = f"line {statement.lines[0]}"
+                    else:
+                        loc = f"lines {statement.lines[0]}-{statement.lines[1]}"
+                    error_msg += f"statement location: {loc}.\n"
+                error_msg += f"An exception of type {type(e).__name__} occurred."
+                if e.args:
+                    if len(e.args) > 1:
+                        error_msg += f" Arguments: {e.args!r}\n"
+                    else:
+                        error_msg += f" Argument: {e.args[0]!r}\n"
+                logger.error(error_msg)
+
+        # check if there are comments at the end
+        if self.comments:
+            while self.comments:
+                comment = self.comments.pop(0)[1]
+                res += '# ' + comment + '\n'
+
+        # add default heading code
+        if self._with_head:
+            if 'model_title' in globals():
+                global model_title
+                res = HEADING_1 + f"name={model_title}" + HEADING_2 + res
+            else:
+                res = HEADING_1 + HEADING_2 + res
+
+        # add header
+        header = "# " + "-" * 15 + \
+            " THIS SCRIPT WAS AUTO-GENERATED FROM GAMS2PYOMO " + "-" * 15 + "\n"
+        length = len(self.f_name)
+        if length > 0:
+            total_l = 19 + length
+            left_l = (80 - total_l) // 2
+            right_l = (80 - total_l) - left_l
+            header += "# " + "-" * left_l + \
+                f" FILE SOURCE: '{self.f_name}' " + "-" * right_l + "\n\n"
+        res = header + res
+
+        logger.info("Done.")
+
+        return res
+
+    def add_root_statements(self, statements):
+        self.root_statements = statements
+
+    def import_comments(self, comments):
+        """
+
+        Add comments reserved from preprocessing.
+
+        Args:
+            comments (list): The list of tuples (line number, comment).
+        """
+
+        self.comments = comments
+
+    def insert_comment(self, statement):
+        """
+        Insert the comment before the statement.
+        """
+
+        res = ''
+
+        # definition list
+        if isinstance(statement, list):
+            for _s in statement:
+                # recursive call
+                res += self.insert_comment(_s)
+            return res
+
+        # comment block, skip
+        if isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
+            return res
+
+        # other statement types
+        if type(statement) in _STATEMENT_TYPES:
+            # check if the line number of the first unprocessed comments is
+            # smaller than the end line of the statement
+            while self.comments and self.comments[0][0] < statement.lines[1]:
+                comment = self.comments.pop(0)[1]
+                res += '# ' + comment + '\n'
+            return res
+
+        return res
+
+    def import_f_name(self, f_name):
+        """
+        Import file name.
+        """
+        self.f_name = f_name
 
     def add_alias(self, component):
         self.symbols['alias'].append(component)

@@ -143,8 +143,8 @@ class GAMSTranslator():
         parse_tree = lark_gams.parse(self.text)
 
         transformer = GAMSTransformer()
-        transformer.import_comments(comments)
-        transformer.import_f_name(self.f_name)
+        transformer.container.import_comments(comments)
+        transformer.container.import_f_name(self.f_name)
         # transform
         res = transformer.transform(parse_tree)
 
