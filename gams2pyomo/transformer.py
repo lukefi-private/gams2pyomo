@@ -274,13 +274,19 @@ class GAMSTransformer(Transformer):
         if isinstance(children, list):
             if isinstance(children[0], list) and len(children) == 1:
                 return children[0]
-            return children
+            return [c for c in children if c is not None]
         if len(children) == 1:
             return children[0]
         # idx_value
         elif isinstance(children[0], tuple):
             return children
         raise NotImplementedError
+
+    def set_description(self, meta, children):
+        """
+        Inline description for set members. Skipped.
+        """
+        return None
 
     def idx_value(self, meta, children):
         return (children[0], children[1])

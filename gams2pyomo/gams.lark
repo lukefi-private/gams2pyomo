@@ -230,7 +230,7 @@ option: _OPTION option_name "=" option_value _END
 
 // ============================== BASIC ELEMENTS ===============================
 
-value.2 		: SIGNED_NUMBER
+value.2 		: SIGNED_NUMBER | ["-"] ["."] SIGNED_NUMBER
 string			: WORD
 description		: FLEX_ESCAPED_STRING
 
@@ -243,7 +243,8 @@ table_definition: symbol [description] [table_data]
 
 // ----------------------------------- data ------------------------------------
 
-data			: _SLASH [data_element ((_COMMA|_NL) data_element)*] _SLASH
+data			: _SLASH [data_element [set_description] ((_COMMA|_NL) data_element [set_description])*] _SLASH
+set_description: description
 // table_data 		: (symbol_id | value | macro )+
 table_data 		: index_row _NL (symbol_id value+ [_NL])+
 ?index_row		: symbol_id+
@@ -381,8 +382,8 @@ _DOUBLEQUOTE: "\""
 // 		[\w]: [a-zA-Z0-9_]
 // 		[\w-]: [\w] plus hyphen
 // word started with a letter
-WORD_IDENTIFIER : /[a-zA-Z][\w-]*/
-WORD			: /[\w-]+/
+WORD_IDENTIFIER : /[a-zA-Z][\w]*/
+WORD			: /[\w]+/
 // 		.: any one chracter but new line
 // 		.?: curb greediness
 // 		(): group sub-expressions

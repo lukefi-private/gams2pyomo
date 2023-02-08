@@ -45,6 +45,7 @@ class ComponentContainer(object):
         self.equation_defs = []
         self.assignments = []
         self.model_defs = []
+        self.model_def_scripts = {}
         self.solve = []
         self.options = {}
         self.if_st = []
