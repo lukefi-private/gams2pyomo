@@ -482,16 +482,16 @@ class GAMSTransformer(Transformer):
         return children[0]
 
     def lead(self, meta, children):
-        return SpecialIndex(children[0], 'lead', children[1])
+        return SpecialIndex(children[0], 'lead', children[2])
 
     def lag(self, meta, children):
-        return SpecialIndex(children[0], 'lag', children[1])
+        return SpecialIndex(children[0], 'lag', children[2])
 
     def circular_lead(self, meta, children):
-        return SpecialIndex(children[0], 'circular_lead', children[1])
+        return SpecialIndex(children[0], 'circular_lead', children[2])
 
     def circular_lag(self, meta, children):
-        return SpecialIndex(children[0], 'circular_lag', children[1])
+        return SpecialIndex(children[0], 'circular_lag', children[2])
 
     def suffix(self, meta, children):
         return children[0]
