@@ -232,10 +232,16 @@ class ModelDefinition(BasicElement):
     #     return "<model={} eqn={}>".format(self.name, ",".join([str(e) for e in self.equations]))
 
     def assemble(self, container, _indent='', **kwargs):
+        """
+        No code is directly generated from model statement. The corresponding
+        code is stored in the container and popped out when the model is solved.
+
+        This is to prevent the impact of data manipulation after cloning.
+        """
 
         # no need to do anything
         if self.all_equation:
-            return f'm_{self.name} = m.clone()' + _NL
+            container.model_def_scripts[self.name] = f'm_{self.name} = m.clone()' + _NL
         else:
             m_name = f'm_{self.name}'
             # clone the original model
@@ -244,7 +250,9 @@ class ModelDefinition(BasicElement):
             for eq in container.equation:
                 if eq not in self.equations:
                     res += f"{m_name}.del_component('{eq}')" + _NL
-            return res
+            container.model_def_scripts[self.name] = res
+
+        return ''
 
 
 class SolveStatement(BasicElement):
@@ -259,6 +267,9 @@ class SolveStatement(BasicElement):
 
     def assemble(self, container, _indent='', **kwargs):
 
+        # get the model statement code
+        res = container.model_def_scripts[self.name]
+
         _sense_dict = {
             'minimizing': 1,
             'maximizing': -1,
@@ -266,7 +277,7 @@ class SolveStatement(BasicElement):
 
         # declare objective
         # TODO: what if _obj_ is used
-        res = f'm_{self.name}._obj_ = Objective(rule=m_{self.name}.{self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
+        res += f'm_{self.name}._obj_ = Objective(rule=m_{self.name}.{self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
 
         # assign solver via model type
         if self.type.lower() in container.options:
@@ -335,6 +346,7 @@ class Assignment(BasicElement):
             'up': 'setub',
             'lo': 'setlb',
             'fx': 'fix',
+            'l': ''
         }
 
         res, _indent = self._assemble_loop_conditional(container, _indent)
@@ -343,11 +355,16 @@ class Assignment(BasicElement):
         res += self.symbol.assemble(container, _indent,
                                     at_begin=True, top_level=True)
 
-        # set ubd
-        res += '.' + _attribute_dict[attr] + '('
-        # expression
-        res += self._assemble_expression(container, _indent)
-        res += ')' + _NL
+        # set attribute
+        # l: active level
+        if attr == 'l':
+            res += ' = '
+            res += self._assemble_expression(container, _indent) + _NL
+        else:
+            res += '.' + _attribute_dict[attr] + '('
+            # expression
+            res += self._assemble_expression(container, _indent)
+            res += ')' + _NL
 
         return res
 

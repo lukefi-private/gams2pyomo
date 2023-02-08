@@ -65,7 +65,8 @@ Although GAMS is case-insensitive, it is challenging to parse irregular keywords
 5. Please make sure that all the data definitions are clear and precise.
 If the initial value of a parameter is not provided, then the tool will not
 provide a default value (e.g., 0) to it (like GAMS does).
-6. Be careful with special characters in symbols which may have different
+6. Avoid Python keywords in symbol names, e.g., `yield`.
+7. Be careful with special characters in symbols which may have different
 meanings in Python, e.g., dash (-), star (*), etc.
 
 ### GAMS commands that will not be translated
@@ -82,6 +83,10 @@ now. Special formats, especially usage of tab, can lead to errors.
 - `model` statement: limited ways of model definition are supported, including
   - `all`
   - list all equations
+  - Moreover, the model declarations in GAMS and Pyomo are slightly
+  different: in GAMS all models share the same scope for data and variables,
+  whereas Pyomo models are independent of each other after cloning.
+  This can also cause problems in some scenario.
 - `alias`: there are only limited supports for alias lookup.
 Complicated alias usage is not support. E.g.,
   ```gams

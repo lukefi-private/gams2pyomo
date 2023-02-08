@@ -12,26 +12,86 @@ class FuncExpression(BasicElement):
 
     def assemble(self, container, _indent='', **kwargs):
 
+        math_func_dict = {
+            'fn_abs': 'abs',
+            'fn_arccos': 'acos',
+            'fn_arcsin': 'asin',
+            'fn_arctan': 'atan',
+            'fn_ceil': 'ceil',
+            'fn_cos': 'cos',
+            'fn_cosh': 'cosh',
+            'fn_floor': 'floor',
+            'fn_sin': 'sin',
+            'fn_sinh': 'sinh',
+            'fn_tan': 'tan',
+            'fn_tanh': 'tanh',
+            'fn_log': 'log',
+            'fn_log10': 'log10',
+        }
+
         o = self.operands
-        if self.operator.data == 'fn_card':
+
+        if self.operator.data in math_func_dict:
+            res = math_func_dict[self.operator.data] + '('
+            if isinstance(o, list):
+                for _o in o:
+                    if isinstance(_o, (int, float)):
+                        res += str(_o)
+                    else:
+                        res += _o.assemble(container, _indent)
+            else:
+                res += o.assemble(container, _indent)
+            res += ')'
+        elif self.operator.data == 'fn_card':
             res = f'len({_PREFIX + o.name.upper()})'
+        elif self.operator.data == 'fn_power':
+            res = '('
+            if isinstance(o[0], (int, float)):
+                res += str(o[0])
+            else:
+                res += o[0].assemble(container, _indent)
+            res += ') ** '
+            if isinstance(o[1], (int, float)):
+                res += str(o[1])
+            else:
+                res += o[1].assemble(container, _indent)
+        elif self.operator.data == 'fn_sqrt':
+            res = '('
+            if isinstance(o, (int, float)):
+                res += str(o)
+            else:
+                res += o.assemble(container, _indent)
+            res += ') ** 0.5'
+        elif self.operator.data == 'fn_sqr':
+            res = '('
+            if isinstance(o, (int, float)):
+                res += str(o)
+            else:
+                res += o.assemble(container, _indent)
+            res += ') ** 2'
         elif self.operator.data == 'fn_ord':
             res = f'list({_PREFIX + o.name.upper()}).index({o.name}) + 1'
+        elif self.operator.data == 'fn_log2':
+            res = 'log('
+            for _o in o:
+                if isinstance(_o, (int, float)):
+                    res += str(_o)
+                else:
+                    res += _o.assemble(container, _indent)
+            res += ') / log(2)'
         elif self.operator.data == 'fn_errorf':
             container.required_packages.add('math')
             res = f'(1 + math.erf(({o.assemble(container, _indent)}) / math.sqrt(2))) / 2'
         elif self.operator.data == 'fn_sqrt':
             res = f'({o.assemble(container, _indent)}) ** 0.5'
-        elif self.operator.data == 'fn_abs':
-            res = f'abs({o.assemble(container, _indent)})'
         elif self.operator.data == 'fn_round':
             if isinstance(o, list):
                 res = f'round({o[0].assemble(container, _indent)}, {o[1]})'
             else:  # decimal not given
                 res = f'round({o[0].assemble(container, _indent)})'
         elif self.operator.data == 'fn_sameas':
-            op_0 = self.operands[0]
-            op_1 = self.operands[1]
+            op_0 = o[0]
+            op_1 = o[1]
 
             if isinstance(op_0, (str, float, int)):
                 res = str(op_0)
@@ -45,7 +105,7 @@ class FuncExpression(BasicElement):
                 res += op_1.assemble(container, _indent)
         elif self.operator.data == 'fn_max':
             res = 'max('
-            res += ', '.join([o.assemble(container, _indent) for o in self.operands])
+            res += ', '.join([_o.assemble(container, _indent) for _o in o])
             res += ')'
         else:
             msg = "The operator has not been implemented: "
