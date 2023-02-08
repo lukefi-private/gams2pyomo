@@ -38,37 +38,8 @@ def sequence_set(idx1, idx2):
     except ValueError:
         return list(range(int(idx1), int(idx2) + 1))
 
-def find_alias(idx, container):
-
-    # index is defined
-    if isinstance(idx, int) or idx.upper() in container.set:
-        return idx
-
-    # index is alias to defined index
-    for aliases in container.symbols['alias']:
-        if idx in aliases:
-            # if so, find the defined index
-            for a in aliases:
-                if a.upper() in container.set:
-                    return a
-
-    # a specific index in the set, return itself
-    return idx
-
 def change_case(string):
     """Change string format into snake case."""
 
     return ''.join(['_'+i.lower() if i.isupper() else i for i in string]).lstrip('_')
 
-
-def gams_arange(start, stop, step=1):
-    """
-    Generate a list from the for loop condition in GAMS.
-    """
-
-    res = list(np.arange(start, stop, step))
-
-    if res[-1] + step == stop:
-        res.append(stop)
-
-    return res

@@ -549,6 +549,7 @@ math_functions:  "abs" -> fn_abs
 
 string_functions: "card" 	-> fn_card
 				| "ord" 	-> fn_ord
+				| ("sameas" | "sameAs" | "SameAs" | "SAMEAS")	-> fn_sameas
 
 time_functions: "gday"		-> fn_gday
 			| "gdow"		-> fn_gdow

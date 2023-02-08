@@ -54,15 +54,29 @@ If you cannot manage to translate your GAMS code, the following tips may
 be helpful.
 
 1. Make sure that file is a legal GAMS file.
-2. Many execution statements/dollar control options/suffices will not be translated and can potentially cause errors. See the list of supported statements below.
+2. Many execution statements/dollar control options/suffices will not be
+translated and can potentially cause errors. See the list of supported
+statements below.
+3. GAMS is case-insensitive, but please make sure the keywords in your GAMS code
+follow certain rules. Typically the program is able to parse keywords in all
+small cases, all capital cases, or camel Cases. But irregular ones (e.g., `bReAk`)
+will not be identified.
 ### GAMS commands that will be translated with limitations
 - `break`: argument will be omitted; will only break one loop
 
 ### GAMS commands that will not be translated
 - function import
 - `put`
+- acronym definition
 
 ### Supported suffices
 - 
 ### Supported dollar control options
 - `$onPut`, `$offPut`
+
+## License
+Distributed under the MIT License.
+
+## Acknowledgements
+This repo was forked from [GAMS parser](https://github.com/anderson-optimization/gams-parser),
+whose grammar file (`gams.lark`) serves as an important basis for this project.
