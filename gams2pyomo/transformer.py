@@ -248,7 +248,7 @@ class GAMSTransformer(Transformer):
             eq_sign = children[2].data
             rhs = children[3].children[0]
         else:  # len == 5
-            conditional = children[1]
+            conditional = children[1].children[0]
             lhs = children[2].children[0]
             eq_sign = children[3].data
             rhs = children[4].children[0]
@@ -424,20 +424,24 @@ class GAMSTransformer(Transformer):
 
         _indexed_expression_dict = {
             'summation': SumExpression,
+            'product': ProdExpression,
             'set_maximum': SetMaxExpression,
             'set_minimum': SetMinExpression,
         }
 
         if isinstance(children[0], Tree) and not isinstance(children[0], Symbol):
-            if children[0].data in ('summation', 'set_maximum', 'set_minimum'):
+            if children[0].data in _indexed_expression_dict:
                 idx = []
                 expression = None
+                condition = None
                 for c in children[1:]:
                     if isinstance(c, list):
                         idx += c
+                    elif isinstance(c, Tree) and c.data == 'conditional':
+                        condition = c.children[0]
                     else:
                         expression = c
-                return _indexed_expression_dict[children[0].data](idx, expression)
+                return _indexed_expression_dict[children[0].data](idx, expression, condition)
             else:
                 raise NotImplementedError
 

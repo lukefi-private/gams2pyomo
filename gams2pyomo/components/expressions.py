@@ -266,10 +266,11 @@ class ConditionalExpression(BasicElement):
 
 class IndexedExpression(BasicElement):
 
-    def __init__(self, idx, exp):
+    def __init__(self, idx, exp, condition):
 
         self.idx = idx
         self.exp = exp
+        self.condition = condition
 
 
 class SumExpression(IndexedExpression, BasicElement):
@@ -293,6 +294,46 @@ class SumExpression(IndexedExpression, BasicElement):
         for _idx in self.idx:
             _idx = find_alias(_idx, container)
             res += f' for {_idx} in {_PREFIX + _idx.upper()}'
+
+        if self.condition:
+            res += ' if '
+            if isinstance(self.condition, (int, float)):
+                res += str(self.condition)
+            else:
+                res += self.condition.assemble(container, _indent)
+        res += ')'
+
+        return res
+
+
+class ProdExpression(IndexedExpression, BasicElement):
+
+    def assemble(self, container, _indent='', **kwargs):
+
+        if self.minus:
+            res = '- '
+        else:
+            res = ''
+
+        res += 'prod('
+
+        try:
+            res += self.exp.assemble(container, _indent)
+        except Exception as e:
+            msg = "Error while trying to assemble the product expression."
+            logger.error(msg)
+            raise e
+
+        for _idx in self.idx:
+            _idx = find_alias(_idx, container)
+            res += f' for {_idx} in {_PREFIX + _idx.upper()}'
+
+        if self.condition:
+            res += ' if '
+            if isinstance(self.condition, (int, float)):
+                res += str(self.condition)
+            else:
+                res += self.condition.assemble(container, _indent)
         res += ')'
 
         return res
@@ -323,6 +364,14 @@ class SetMaxExpression(IndexedExpression, BasicElement):
         for _idx in self.idx:
             _idx = find_alias(_idx, container)
             res += f' for {_idx} in {_PREFIX + _idx.upper()}'
+
+        if self.condition:
+            res += ' if '
+            if isinstance(self.condition, (int, float)):
+                res += str(self.condition)
+            else:
+                res += self.condition.assemble(container, _indent)
+        res += ')'
 
         res += '])'
 
@@ -356,6 +405,14 @@ class SetMinExpression(IndexedExpression, BasicElement):
         for _idx in self.idx:
             _idx = find_alias(_idx, container)
             res += f' for {_idx} in {_PREFIX + _idx.upper()}'
+
+        if self.condition:
+            res += ' if '
+            if isinstance(self.condition, (int, float)):
+                res += str(self.condition)
+            else:
+                res += self.condition.assemble(container, _indent)
+        res += ')'
 
         res += '])'
 

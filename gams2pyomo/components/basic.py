@@ -118,8 +118,8 @@ class Symbol(BasicElement):
 
 class EquationDefinition(BasicElement):
 
-    def __init__(self, name, index_list, conditional, lhs, eq_sign, rhs, meta):
-        self.name, self.index_list, self.conditional, self.lhs, self.eq_sign, self.rhs = name, index_list, conditional, lhs, eq_sign, rhs
+    def __init__(self, name, index_list, condition, lhs, eq_sign, rhs, meta):
+        self.name, self.index_list, self.condition, self.lhs, self.eq_sign, self.rhs = name, index_list, condition, lhs, eq_sign, rhs
         self.lines = (meta.line, meta.end_line)
 
     def assemble(self, container, _indent='', **kwargs):
@@ -146,8 +146,15 @@ class EquationDefinition(BasicElement):
         _indent += '\t'
 
         # conditional line
-        if self.conditional:
-            raise NotImplementedError
+        if self.condition:
+            res += _indent + 'if '
+            if isinstance(self.condition, (int, float)):
+                res += str(self.condition)
+            else:
+                res += self.condition.assemble(container, _indent)
+            res += ':' + _NL
+            # increase indent
+            _indent += '\t'
 
         # return line
         res += _indent + 'return '
@@ -173,8 +180,17 @@ class EquationDefinition(BasicElement):
                 msg = "Error while trying to assemble the LHS of the equation."
                 logger.error(msg)
                 raise e
-
         res += _NL
+
+        # add else -> return skip
+        if self.condition:
+            # decrease indent
+            _indent = _indent[:-1]
+            # else line
+            res += _indent + 'else:' + _NL
+            # increase indent
+            _indent += '\t'
+            res += _indent + 'return Constraint.Skip' + _NL
 
         # declaration line
         res += self._assemble_declaration()
@@ -312,9 +328,9 @@ class Assignment(BasicElement):
     The class for assignment statement.
     """
 
-    def __init__(self, symbol: Symbol, conditional, expression, meta):
+    def __init__(self, symbol: Symbol, condition, expression, meta):
 
-        self.symbol, self.conditional, self.expression = symbol, conditional, expression
+        self.symbol, self.condition, self.expression = symbol, condition, expression
         self.lines = (meta.line, meta.end_line)
 
     def assemble(self, container, _indent='', **kwargs):
@@ -326,7 +342,7 @@ class Assignment(BasicElement):
 
     def _assemble_basic(self, container, _indent=''):
 
-        res, _indent = self._assemble_loop_conditional(container, _indent)
+        res, _indent = self._assemble_loop_condition(container, _indent)
 
         # symbol
         res += self.symbol.assemble(container, _indent,
@@ -349,7 +365,7 @@ class Assignment(BasicElement):
             'l': ''
         }
 
-        res, _indent = self._assemble_loop_conditional(container, _indent)
+        res, _indent = self._assemble_loop_condition(container, _indent)
 
         # symbol
         res += self.symbol.assemble(container, _indent,
@@ -368,7 +384,7 @@ class Assignment(BasicElement):
 
         return res
 
-    def _assemble_loop_conditional(self, container, _indent):
+    def _assemble_loop_condition(self, container, _indent):
 
         # whether it is necessary to build a loop to assign values to a set of parameters
         build_loop = False
@@ -393,11 +409,11 @@ class Assignment(BasicElement):
                 _indent += '\t'
 
         # conditional lines
-        if self.conditional:
+        if self.condition:
 
             res += _indent + 'if '
 
-            c = self.conditional.children[0]
+            c = self.condition.children[0]
             try:
                 res += c.assemble(container, _indent, top_level=True)
                 res += ':' + _NL
