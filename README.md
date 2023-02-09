@@ -102,6 +102,12 @@ Complicated alias usage is not support. E.g.,
 ### Supported dollar control options
 - `$title`
 
+### Supported math functions
+- `abs`, `ceil`, `floor`
+- `log`, `log2`, `log10`
+- trigonometric functions
+- power functions and square root
+
 ## License
 Distributed under the MIT License.
 
