@@ -1,3 +1,5 @@
+![logo](logo.png)
+
 # gams2pyomo: A Translator for Optimization Models
 
 `gams2pyomo` is a utility tool aiming at translating GAMS files
