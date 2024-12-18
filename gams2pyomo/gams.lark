@@ -232,7 +232,7 @@ option: _OPTION option_name "=" option_value _END
 
 value.2 		: SIGNED_NUMBER | ["-"] ["."] SIGNED_NUMBER
 string			: WORD
-description		: FLEX_ESCAPED_STRING
+description		: FLEX_ESCAPED_STRING | WORDS
 
 
 // -------------------------------- definition ---------------------------------
@@ -262,11 +262,11 @@ MUL_OP: "*" | "/"
 POWER_OP: "**"
 
 // arithmetic operations and parenthesis
-add_expr:    add_expr ADD_OP mul_expr
+?add_expr:    add_expr ADD_OP mul_expr
     		| mul_expr
-mul_expr:    mul_expr MUL_OP pow_expr
+?mul_expr:    mul_expr MUL_OP pow_expr
     		| pow_expr
-pow_expr:    primary POWER_OP pow_expr
+?pow_expr:    primary POWER_OP pow_expr
     		| primary
 ?primary: indexed_operation | func_expression | value | symbol | _LPAR add_expr _RPAR
 
@@ -274,7 +274,7 @@ pow_expr:    primary POWER_OP pow_expr
 indexed_operation: operator_indexed _LPAR (index_list | _LPAR index_list _RPAR) [conditional] _COMMA expression _RPAR
 
 // general expressions
-expression:   _LPAR expression _RPAR
+?expression:   _LPAR expression _RPAR
 			| func_expression
 			| expression operator_logical expression
 			| expression operator_relation expression
@@ -384,6 +384,7 @@ _DOUBLEQUOTE: "\""
 // word started with a letter
 WORD_IDENTIFIER : /[a-zA-Z][\w]*/
 WORD			: /[\w]+/
+WORDS : /[^\/]+/
 // 		.: any one chracter but new line
 // 		.?: curb greediness
 // 		(): group sub-expressions
@@ -400,7 +401,8 @@ FLEX_ESCAPED_STRING : /['"].*?(?<!\\)['"]/
 // 		[^\n]: a character other than newline
 // add `\n` at the beginning to correct detect comments
 // although `_NL` is ignored, lark is still able to identify `\n` for comments
-COMMENT : /\n\*[^\n]+/
+// changed + -> * to match empty comments
+COMMENT : /\n\*[^\n]*/
 %ignore COMMENT
 
 COMMENT_BLOCK: ("$ontext" | "$ONTEXT" | "$onText") /(\S|\s)*?/ ("$offtext" | "$OFFTEXT" | "$offText")
@@ -424,7 +426,7 @@ WS: (/[ \t\f\r]/+) | (/(\n(?!\*))/+)
 | "offEcho" | "offExternalOutput" | "offEpsToZero" | "offInclude" | "offListing" | "offLog"
 | "offPut" | "offUpper" | "offVerbatim" | "onDollar" | "onEcho" | "onEchoS" | "onEchoV"
 | "onEpsToZero" | "onExternalOutput" | "onInclude" | "onListing" | "onLog" | "onPut" | "onPutS"
-| "onPutV" | "onUpper" | "onVerbatim" | "remark" | "single" | "stars" | "sTitle" | "title"
+| "onPutV" | "onUpper" | "onVerbatim" | "remark" | "single" | "stars" | "sTitle" | "title" | "TITLE"
 | "offSymList" | "offSymXRef" | "offUElList" | "offUElXRef" | "onSymList" | "onSymXRef"
 | "onUElList" | "onUElXRef" | "abort" | "batInclude" | "call" | "call" | "call" | "clear"
 | "clearError" | "else" | "elseIf" | "elseIfE" | "elseIfI" | "endif" | "error" | "exit"
