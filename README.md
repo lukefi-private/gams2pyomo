@@ -60,10 +60,10 @@ be helpful.
 translated and can potentially cause errors. See the list of supported
 statements below.
 3. Please end each statement with semicolon (`;`), even if it is the last one.
-4. Please make sure that the spelling of keywords are regular (e.g., in all
+4. ~~Please make sure that the spelling of keywords are regular (e.g., in all
 small cases, all capital cases, or camel cases).
 Although GAMS is case-insensitive, it is challenging to parse irregular keywords
-(e.g., `bReAk`).
+(e.g., `bReAk`).~~ (This is fixed)
 5. Please make sure that all the data definitions are clear and precise.
 If the initial value of a parameter is not provided, then the tool will not
 provide a default value (e.g., 0) to it (like GAMS does).

@@ -111,7 +111,7 @@ puttl: _PUTTL [filename] output_item ([_COMMA] output_item)* _END
 
 // --------------------------------- for loop ----------------------------------
 
-for_st: _FOR _LPAR symbol "=" start_n (("to" | "To" | "TO") | ("downto" | "Downto" | "Downto")) end_n [("by" | "By" | "BY") step_n] _COMMA statement+ _RPAR _END
+for_st: _FOR _LPAR symbol "=" start_n ( "to"i | "downto"i ) end_n ["by"i step_n] _COMMA statement+ _RPAR _END
 ?start_n: SIGNED_NUMBER
 ?end_n: SIGNED_NUMBER
 ?step_n: NUMBER
@@ -327,42 +327,42 @@ suffix			: _DOT string
 
 // --------------------------------- keywords ----------------------------------
 
-_ABORT: "abort" | "Abort" | "ABORT"
-_ACRONYM: ("Acronym" ["s"]) | ("acronym" ["s"]) | ("ACRONYM" ["S"])
+_ABORT: "abort"i
+_ACRONYM: ("Acronym"i ["s"i])
 _ALIAS: "alias" | "Alias" | "ALIAS"
-_BREAK: "break" | "Break" | "BREAK"
-_BVARIABLE: ("binary variable" ["s"]) | ("Binary variable" ["s"]) | ("Binary Variable" ["s"]) | ("BINARY VARIABLE" ["S"])
-_CONTINUE: "continue" | "Continue" | "CONTINUE"
-_DISPLAY: "display" | "Display" | "DISPLAY"
-_DOLLARIF: "$if" | "$If" | "$IF"
+_BREAK: "break"i
+_BVARIABLE: ("binary variable"i ["s"i])
+_CONTINUE: "continue"i
+_DISPLAY: "display"i
+_DOLLARIF: "$if"i
 _DOLLAR: "$"
-_ELSEIF: "elseif" | "Elseif" | "ELSEIF"
-_ELSE: "else" | "Else" | "ELSE"
-_EQUATION: ("equation" ["s"]) | ("Equation" ["s"]) | ("EQUATION" ["S"])
-_FILE: ("File" ["s"]) | ("file" ["s"]) | ("FILE" ["S"])
-_FOR: "for" | "For" | "FOR"
-_FUNCTION: "function" | "Function" | "FUNCTION"
-_IF: "if" | "If" | "IF"
-_LOOP: "loop" | "Loop" | "LOOP"
-_MODEL: "model" | "Model" | "MODEL"
-_OPTION: "OPTION" | "option"
-_PARAMETER: ("parameter" ["s"]) | ("Parameter" ["s"]) | ("PARAMETER" ["S"])
-_PUT: "put" | "Put" | "PUT"
+_ELSEIF: "elseif"i
+_ELSE: "else"i
+_EQUATION: ("equation"i ["s"i])
+_FILE: ("File"i ["s"i])
+_FOR: "for"i
+_FUNCTION: "function"i
+_IF: "if"i
+_LOOP: "loop"i
+_MODEL: "model"i
+_OPTION: "OPTION"i
+_PARAMETER: ("parameter"i ["s"i])
+_PUT: "put"i
 _PUTUTILITY: "put_utility" | "put_utilities"
 _PUTCLEAR: "putclear"
 _PUTCLOSE: "putclose"
 _PUTHD: "puthd"
 _PUTPAGE: "putpage"
 _PUTTL: "puttl"
-_PVARIABLE: ("positive variable" ["s"]) | ("Positive variable" ["s"]) | ("Positive Variable" ["s"]) | ("POSITIVE VARIABLE" ["S"])
+_PVARIABLE: ("positive variable"i ["s"i])
 _REPEAT: "repeat" | "Repeat" | "REPEAT"
-_SCALAR: ("scalar" ["s"]) | ("Scalar" ["s"]) | ("SCALAR" ["S"])
-_SET: ("set" ["s"]) | ("Set" ["s"]) | ("SET" ["S"])
-_SOLVE: "solve" | "Solve" | "SOLVE"
-_TABLE: "table" | "Table" | "TABLE"
-_UNTIL: "until" | "Until" | "UNTIL"
-_VARIABLE: ["free " | "Free " | "FREE "] (("variable" ["s"]) | ("Variable" ["s"]) | ("VARIABLE" ["S"]))
-_WHILE: "while" | "While" | "WHILE"
+_SCALAR: ("scalar"i ["s"i])
+_SET: ("set"i ["s"i])
+_SOLVE: "solve"i
+_TABLE: "table"i
+_UNTIL: "until"i
+_VARIABLE: ["free "i] ("variable"i ["s"i])
+_WHILE: "while"i
 
 // -------------------------------- punctuation --------------------------------
 
@@ -405,7 +405,7 @@ FLEX_ESCAPED_STRING : /['"].*?(?<!\\)['"]/
 COMMENT : /\n\*[^\n]*/
 %ignore COMMENT
 
-COMMENT_BLOCK: ("$ontext" | "$ONTEXT" | "$onText") /(\S|\s)*?/ ("$offtext" | "$OFFTEXT" | "$offText")
+COMMENT_BLOCK: "$ontext"i /(\S|\s)*?/ "$offtext"i
 
 // the updated `WS` exclude `\n` for the comments
 WS: (/[ \t\f\r]/+) | (/(\n(?!\*))/+)
@@ -426,7 +426,7 @@ WS: (/[ \t\f\r]/+) | (/(\n(?!\*))/+)
 | "offEcho" | "offExternalOutput" | "offEpsToZero" | "offInclude" | "offListing" | "offLog"
 | "offPut" | "offUpper" | "offVerbatim" | "onDollar" | "onEcho" | "onEchoS" | "onEchoV"
 | "onEpsToZero" | "onExternalOutput" | "onInclude" | "onListing" | "onLog" | "onPut" | "onPutS"
-| "onPutV" | "onUpper" | "onVerbatim" | "remark" | "single" | "stars" | "sTitle" | "title" | "TITLE"
+| "onPutV" | "onUpper" | "onVerbatim" | "remark" | "single" | "stars" | "sTitle" | "title"i
 | "offSymList" | "offSymXRef" | "offUElList" | "offUElXRef" | "onSymList" | "onSymXRef"
 | "onUElList" | "onUElXRef" | "abort" | "batInclude" | "call" | "call" | "call" | "clear"
 | "clearError" | "else" | "elseIf" | "elseIfE" | "elseIfI" | "endif" | "error" | "exit"
