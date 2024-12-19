@@ -32,6 +32,7 @@ class FuncExpression(BasicElement):
         o = self.operands
 
         if self.operator.data in math_func_dict:
+            container.required_packages.add('math')
             res = math_func_dict[self.operator.data] + '('
             if isinstance(o, list):
                 for _o in o:
