@@ -96,7 +96,7 @@ Complicated alias usage is not support. E.g.,
   darc(i, ip) = max(uarc(i, ip), uarc(ip, i));
   ```
 - `break`: argument will be omitted; will only break one loop.
-
+- `Acronym` definitions are not supported (yet), could probably be defined as [enums](https://stackoverflow.com/questions/32864635/different-ways-to-declare-enum-datatype-in-julia-lang) in Julia (and python). But might be unnecessary work.
 
 ### Supported suffices
 - `.l`
