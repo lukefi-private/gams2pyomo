@@ -237,7 +237,7 @@ description		: FLEX_ESCAPED_STRING | WORDS
 
 // -------------------------------- definition ---------------------------------
 
-definition: symbol [description] [data] [_COMMA]
+definition: symbol [description] [data] [(_COMMA | _NL)]
 table_definition: symbol [description] [table_data]
 
 
@@ -310,7 +310,7 @@ index_list		: index_item (_COMMA index_item )*
 				| symbol_element
 				| cli_param
 				| "*"
-symbol_range    : identifier "*" identifier
+symbol_range.3    : identifier "*" identifier
 symbol_id 		: identifier ("." identifier)*
 symbol_element  : _QUOTE identifier _QUOTE
 				| _QUOTE cli_param _QUOTE
@@ -384,7 +384,7 @@ _DOUBLEQUOTE: "\""
 // word started with a letter
 WORD_IDENTIFIER : /[a-zA-Z][\w]*/
 WORD			: /[\w]+/
-WORDS : /[^\/]+/
+WORDS : /[^\/\n;,]+/
 // 		.: any one chracter but new line
 // 		.?: curb greediness
 // 		(): group sub-expressions
