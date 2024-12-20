@@ -18,6 +18,7 @@ set test;
 
 set test2 /
 **ao list asset
+elem
 /;
 
 
