@@ -15,14 +15,3 @@ Scalars
 ;
 
 
-* test
-
-
-
-Scalars
-   PKGZ           abc / 1 /
-   ERZ            efg / 1 /
-   KSZ            hij
-   LSZ            lmn
-   PLZ            opq / 1 /
-;
