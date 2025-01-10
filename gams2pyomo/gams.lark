@@ -235,6 +235,7 @@ option: _OPTION option_name "=" option_value _END
 value.2 		: SIGNED_NUMBER | ["-"] ["."] SIGNED_NUMBER
 string			: WORD
 // TODO parsing descriptions is could be a lot better
+// ../test/gams_basic/param/paramater_with_set.gms
 description		: FLEX_ESCAPED_STRING // | WORDS
 
 
