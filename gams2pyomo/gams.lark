@@ -55,9 +55,10 @@ rhs: expression
 // ----------------------------- model definition ------------------------------
 
 model_def: _MODEL single_model_def+ _END
-single_model_def: string [model_description] "/" symbol_name ("," symbol_name)* "/"
+// TODO: support "all" statement in model definition
+single_model_def: string [model_description] "/" symbol_name[suffix] ([","] symbol_name[suffix])* "/"
 model_description: description
-
+complimetary_variable: suffix
 
 // ------------------------------ function import ------------------------------
 
@@ -218,7 +219,8 @@ sense: string
 
 // -------------------------------- assignment ---------------------------------
 
-assignment: symbol [conditional] "=" expression _END
+assignment: (symbol [conditional] "=" expression _END
+          | symbol "=" expression conditional _END)
 
 
 // ---------------------------------- option -----------------------------------
@@ -232,7 +234,8 @@ option: _OPTION option_name "=" option_value _END
 
 value.2 		: SIGNED_NUMBER | ["-"] ["."] SIGNED_NUMBER
 string			: WORD
-description		: FLEX_ESCAPED_STRING | WORDS
+// TODO parsing descriptions is could be a lot better
+description		: FLEX_ESCAPED_STRING // | WORDS
 
 
 // -------------------------------- definition ---------------------------------
@@ -268,10 +271,10 @@ POWER_OP: "**"
     		| pow_expr
 ?pow_expr:    primary POWER_OP pow_expr
     		| primary
-?primary: indexed_operation | func_expression | value | symbol | _LPAR add_expr _RPAR
+?primary: indexed_operation | func_expression | value | symbol | expression conditional | _LPAR add_expr _RPAR
 
 // indexed operations
-indexed_operation: operator_indexed _LPAR (index_list | _LPAR index_list _RPAR) [conditional] _COMMA expression _RPAR
+indexed_operation: operator_indexed _LPAR (index_list | _LPAR index_list _RPAR) [conditional] _COMMA expression [conditional] _RPAR
 
 // general expressions
 ?expression:   _LPAR expression _RPAR
@@ -291,10 +294,10 @@ indexed_operation: operator_indexed _LPAR (index_list | _LPAR index_list _RPAR) 
 func_expression: (math_functions | string_functions | time_functions) _LPAR func_arguments _RPAR
 ?func_arguments: expression (_COMMA expression)*
 
-negate: "not" | "NOT"
+negate: "not"i
 ?minus: "-"
 
-conditional: "$" expression
+conditional: "$" expression 
 
 
 // ---------------------------------- symbol -----------------------------------
@@ -384,7 +387,7 @@ _DOUBLEQUOTE: "\""
 // word started with a letter
 WORD_IDENTIFIER : /[a-zA-Z][\w]*/
 WORD			: /[\w]+/
-WORDS : /[^\/\n;,]+/
+WORDS : /[^\n\/;,]+/
 // 		.: any one chracter but new line
 // 		.?: curb greediness
 // 		(): group sub-expressions
@@ -451,19 +454,21 @@ WS: (/[ \t\f\r]/+) | (/(\n(?!\*))/+)
 
 // --------------------------------- equations ---------------------------------
 
-equation_types: "=e=" -> eqn_equality
-				| "=g=" -> eqn_greater_than
-				| "=l=" -> eqn_less_than
-				| "=n=" -> eqn_no_relationship
-				| "=x=" -> eqn_external_program
-				| "=c=" -> eqn_conic_constraint
-				| "=b=" -> eqn_boolean_equation
+equation_types: "=e="i -> eqn_equality
+				| "=g="i -> eqn_greater_than
+				| "=l="i -> eqn_less_than
+				| "=n="i -> eqn_no_relationship
+				| "=x="i -> eqn_external_program
+				| "=c="i -> eqn_conic_constraint
+				| "=b="i -> eqn_boolean_equation
 
 
 operator_indexed: "sum"		-> summation
 				| "prod"	-> product
 				| "smin"	-> set_minimum
 				| "smax" 	-> set_maximum
+        | "sand"  -> conjunction
+        | "sor"   -> disjunction
 
 operator_expression: "**" 	-> exponentiation
 					| "*"	-> multiplication
@@ -553,9 +558,10 @@ math_functions:  "abs" -> fn_abs
 		| "uniformInt" 	-> fn_uniform_int
 		| "vcPower" 	-> fn_vc_power
 
-string_functions: "card" 	-> fn_card
-				| "ord" 	-> fn_ord
-				| ("sameas" | "sameAs" | "SameAs" | "SAMEAS")	-> fn_sameas
+string_functions: "card"i 	-> fn_card
+				| "ord"i 	-> fn_ord
+				| "sameas"i	-> fn_sameas
+        | "diag"i -> fn_diag
 
 time_functions: "gday"		-> fn_gday
 			| "gdow"		-> fn_gdow
