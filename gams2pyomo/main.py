@@ -124,7 +124,7 @@ class GAMSTranslator():
         logger.info("Done.")
         return res
 
-    def translate(self, translate_comment=True):
+    def translate(self, translate_comment=True, codegen):
         """Translate the GAMS code into Python-Pyomo code.
 
         Args:
