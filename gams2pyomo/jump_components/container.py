@@ -159,10 +159,11 @@ class ComponentContainer(object):
         header += "\n\n"
 
         # model declaration
-        header += "m = ConcreteModel("
         if len(self.model_title) > 0:
-            header += f"name='{self.model_title}'"
-        header += ")" + _NL
+            header += f"# Model name: {self.model_title}" + _NL
+
+        header += "m = Model()" + _NL
+
 
         return header
 

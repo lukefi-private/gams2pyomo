@@ -152,7 +152,7 @@ class EquationDefinition(BasicElement):
                 res += str(self.condition)
             else:
                 res += self.condition.assemble(container, _indent)
-            res += ':' + _NL
+            res += _NL
             # increase indent
             _indent += '\t'
 
@@ -177,7 +177,7 @@ class EquationDefinition(BasicElement):
             try:
                 res += self.rhs.assemble(container, _indent, top_level=False)
             except Exception as e:
-                msg = "Error while trying to assemble the LHS of the equation."
+                msg = "Error while trying to assemble the RHS of the equation."
                 logger.error(msg)
                 raise e
         res += _NL
@@ -202,6 +202,7 @@ class EquationDefinition(BasicElement):
     def _assemble_declaration(self):
 
         res = _PREFIX + self.name + ' = Constraint('
+        res = f"@constraint(model, {self.name}"
 
         global leap_lag_op, leap_lag_var, leap_lag_val
         if leap_lag_op:
@@ -289,13 +290,13 @@ class SolveStatement(BasicElement):
         res = container.model_def_scripts[self.name]
 
         _sense_dict = {
-            'minimizing': 1,
-            'maximizing': -1,
+            'minimizing': "Min",
+            'maximizing': "Max",
         }
 
         # declare objective
         # TODO: what if _obj_ is used
-        res += f'm_{self.name}._obj_ = Objective(rule=m_{self.name}.{self.obj_var}, sense={_sense_dict[self.sense]})' + _NL
+        res += f"@objective(m_{self.name}, {_sense_dict[self.sense], {self.obj_var})" + _NL
 
         # assign solver via model type
         if self.type.lower() in container.options:
@@ -313,10 +314,10 @@ class SolveStatement(BasicElement):
                 'global': 'baron',
                 # 'mcp', 'mpec', 'Stoch.'
             }
-            res += f"opt = SolverFactory('{_default_solvers[self.type.lower()]}')" + _NL
+            res += f"set_optimizer(m, () -> {_default_solvers[self.type.lower()]}()')" + _NL
 
         # solve
-        res += f'opt.solve(m_{self.name}, tee=True)' + _NL
+        res += f"optimize!(m_{self.name})" + _NL
 
         # update global variable
         global last_solved_model
