@@ -480,7 +480,7 @@ operator_expression: "**" 	-> exponentiation
 operator_logical: "not" 	-> bool_not
 				| "and" 	-> bool_and
 				| "or"		-> bool_or
-				| "xor"		-> bool_or
+				| "xor"		-> bool_xor
 
 operator_relation: ( "=" | "eq" )		-> rel_eq
 				| ( ">" | "gt" )		-> abs_gt
