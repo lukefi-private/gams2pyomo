@@ -104,7 +104,7 @@ class ComponentContainer(object):
                 elif isinstance(statement, Token) and statement.type == 'COMMENT_BLOCK':
                     # `[8:-8]`: remove `$ontext\n` and `$offtext`
                     comment_block = statement.value[8:-8]
-                    res += f'\n"""{comment_block}"""\n\n'
+                    res += f'\n#= {comment_block} =#\n\n'
 
                 # handle returned exceptions
                 elif isinstance(statement, Exception):
@@ -152,10 +152,10 @@ class ComponentContainer(object):
             header += "# " + "-" * left_l + f" FILE SOURCE: '{self.f_name}' " + "-" * right_l + "\n\n"
 
         # package import
-        header += r"from pyomo.environ import *" + _NL
+        header += r"using JuMP" + _NL
 
         for p in self.required_packages:
-            header += rf"import {p}" + _NL
+            header += rf"using {p}" + _NL
         header += "\n\n"
 
         # model declaration

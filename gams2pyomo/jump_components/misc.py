@@ -91,13 +91,12 @@ class Display(BasicElement):
             elif symbol.suffix:
                 # activity level
                 if symbol.suffix == 'l':
-                    _res = symbol.name
-                    _res = prefix + _res + '.pprint()' + _NL
+                    _res = f"print(value({prefix + symbol.name}))" + _NL
                 else:
                     logger.warn(f"Not supported suffix type for display: '.{symbol.suffix}'")
                     continue
             else:
-                _res = symbol.assemble(container, _indent) + '.pprint()' + _NL
+                _res = "print(value(" symbol.assemble(container, _indent) + '))' + _NL
 
             _tmp_res.append(_indent + _res)
 

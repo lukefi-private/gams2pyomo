@@ -12,12 +12,12 @@ class ElseIfStatement(BasicElement):
         # Tree.__init__(self, data, children, meta=meta)
 
     def assemble(self, container, _indent='', **kwargs):
-        res = _indent + 'elif '
+        res = _indent + 'elseif '
 
         # condition
         if isinstance(self.condition, BinaryExpression):
             res += self.condition.assemble(container, _indent, top_level=True)
-            res += ':' + _NL
+            res += _NL
         else:
             raise NotImplementedError
 
@@ -30,6 +30,7 @@ class ElseIfStatement(BasicElement):
                 res += s.assemble(container, _indent)
             else:
                 raise NotImplementedError
+        res += _indent[:-1] + "end" + _NL
 
         return res
 
@@ -50,7 +51,7 @@ class IfStatement(BasicElement):
         # condition
         if isinstance(self.condition, BinaryExpression):
             res += self.condition.assemble(container, _indent, top_level=True)
-            res += ':' + _NL
+            res += _NL
             _indent += '\t'
         else:
             raise NotImplementedError
@@ -74,7 +75,7 @@ class IfStatement(BasicElement):
 
             # reduce indent level
             _indent = (len(_indent) - 1) * '\t'
-            res += _indent + 'else:' + _NL
+            res += _indent + 'else' + _NL
             _indent += '\t'
 
             for s in self.else_statement:
@@ -83,6 +84,7 @@ class IfStatement(BasicElement):
                 else:
                     raise NotImplementedError
             ...
+        res += "end" + _NL
 
         return res
 
@@ -102,7 +104,7 @@ class LoopStatement(BasicElement):
         res = ''
 
         # loop lines
-        res += _indent + f'for {_idx} in {_PREFIX + _set}:' + _NL
+        res += _indent + f'for {_idx} in {_PREFIX + _set}' + _NL
         # increase indent
         _indent += '\t'
 
@@ -114,7 +116,7 @@ class LoopStatement(BasicElement):
             c = self.conditional.children[0]
             if isinstance(c, BinaryExpression):
                 res += c.assemble(container, _indent, top_level=True)
-                res += ':' + _NL
+                res +=  _NL
             else:
                 raise NotImplementedError
 
@@ -145,7 +147,7 @@ class RepeatStatement(BasicElement):
     def assemble(self, container, _indent='', **kwargs):
 
         # start line
-        res = _indent + 'while True:' + _NL
+        res = _indent + 'while true' + _NL
         # increase indent
         _indent += '\t'
 
@@ -165,10 +167,11 @@ class RepeatStatement(BasicElement):
         c = self.conditional
         if isinstance(c, BinaryExpression):
             res += c.assemble(container, _indent, top_level=True)
-            res += ': break' + _NL
+            res += f'{_NL}{_indent}\tbreak' + _NL
+            res += (len(_indent -1)* '\t') + "end" + _NL
         else:
             raise NotImplementedError
-
+        res += _indent + "end"
         return res
 
 
@@ -186,7 +189,7 @@ class WhileStatement(BasicElement):
         c = self.conditional
         if isinstance(c, BinaryExpression):
             res += c.assemble(container, _indent, top_level=True)
-            res += ':' + _NL
+            res += _NL
         else:
             raise NotImplementedError
         # increase indent
@@ -201,6 +204,7 @@ class WhileStatement(BasicElement):
                 msg += f"Step: Transforming for loop, statement: {s}"
                 logger.error(msg)
                 raise e
+        res += "end" + _NL
 
         return res
 
@@ -240,6 +244,8 @@ class ForStatement(BasicElement):
                 raise e
 
         container.inner_scope.clear()
+        
+        res += "end" + _NL
 
         return res
 
@@ -253,10 +259,12 @@ class BreakStatement(BasicElement):
         res = ''
 
         if self.conditional:
-            res += _indent + 'if ' + self.conditional.assemble(container, _indent) + ":" + _NL
+            res += _indent + 'if ' + self.conditional.assemble(container, _indent) + _NL
             _indent += '\t'
 
         res += _indent + 'break' + _NL
+        
+        res += _ident[:-1] + "end" _NL
 
         return res
 
@@ -270,10 +278,12 @@ class ContinueStatement(BasicElement):
         res = ''
 
         if self.conditional:
-            res += _indent + 'if ' + self.conditional.assemble(container, _indent) + ":" + _NL
+            res += _indent + 'if ' + self.conditional.assemble(container, _indent) + _NL
             _indent += '\t'
 
         res += _indent + 'continue' + _NL
+
+        res += _ident[:-1] + "end" _NL
 
         return res
 

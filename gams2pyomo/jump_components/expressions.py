@@ -27,12 +27,13 @@ class FuncExpression(BasicElement):
             'fn_tanh': 'tanh',
             'fn_log': 'log',
             'fn_log10': 'log10',
+            'fn_log2': 'log2',
+            'fn_sqrt': 'sqrt',
         }
 
         o = self.operands
 
         if self.operator.data in math_func_dict:
-            container.required_packages.add('math')
             res = math_func_dict[self.operator.data] + '('
             if isinstance(o, list):
                 for _o in o:
@@ -56,13 +57,6 @@ class FuncExpression(BasicElement):
                 res += str(o[1])
             else:
                 res += o[1].assemble(container, _indent)
-        elif self.operator.data == 'fn_sqrt':
-            res = '('
-            if isinstance(o, (int, float)):
-                res += str(o)
-            else:
-                res += o.assemble(container, _indent)
-            res += ') ** 0.5'
         elif self.operator.data == 'fn_sqr':
             res = '('
             if isinstance(o, (int, float)):
@@ -72,22 +66,12 @@ class FuncExpression(BasicElement):
             res += ') ** 2'
         elif self.operator.data == 'fn_ord':
             res = f'list({_PREFIX + o.name.upper()}).index({o.name}) + 1'
-        elif self.operator.data == 'fn_log2':
-            res = 'log('
-            for _o in o:
-                if isinstance(_o, (int, float)):
-                    res += str(_o)
-                else:
-                    res += _o.assemble(container, _indent)
-            res += ') / log(2)'
         elif self.operator.data == 'fn_errorf':
-            container.required_packages.add('math')
-            res = f'(1 + math.erf(({o.assemble(container, _indent)}) / math.sqrt(2))) / 2'
-        elif self.operator.data == 'fn_sqrt':
-            res = f'({o.assemble(container, _indent)}) ** 0.5'
+            container.required_packages.add('SpecialFunctions')
+            res = f'(1 + erf(({o.assemble(container, _indent)}) / math.sqrt(2))) / 2'
         elif self.operator.data == 'fn_round':
             if isinstance(o, list):
-                res = f'round({o[0].assemble(container, _indent)}, {o[1]})'
+                res = f'round({o[0].assemble(container, _indent)}, digits = {o[1]})'
             else:  # decimal not given
                 res = f'round({o[0].assemble(container, _indent)})'
         elif self.operator.data == 'fn_sameas':
@@ -117,7 +101,7 @@ class FuncExpression(BasicElement):
             res = '- ' + res
 
         if self.negate:
-            res = 'not ' + res
+            res = '!' + res
 
         return res
 
@@ -137,9 +121,9 @@ class BinaryExpression(BasicElement):
         'rel_eq_macro': '==',
         'abs_gt': '>',
         'abs_lt': '<',
-        'bool_and': 'and',
-        'bool_or': 'or',
-        'bool_xor': '!='
+        'bool_and': '&&',
+        'bool_or': '||',
+        'bool_xor': '⊻'
     }
 
     top_level_operator = ['rel_eq', 'rel_ge', 'rel_eq', 'rel_ne',
