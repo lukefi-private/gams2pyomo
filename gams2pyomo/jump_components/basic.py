@@ -59,7 +59,7 @@ class Symbol(BasicElement):
         if self.name in container.inner_scope:
             res += self.name
         else:
-            res += _PREFIX + self.name
+            res += self.name
 
         if self.index_list:
             res += '['
@@ -137,7 +137,7 @@ class EquationDefinition(BasicElement):
 
         # function definition
         # def line
-        res = f'function {self.name}(m'
+        res = f'function {self.name}('
         if index_list:
             for _idx in index_list:
                 res += f', {_idx}'
@@ -192,10 +192,10 @@ class EquationDefinition(BasicElement):
             _indent += '\t'
             res += _indent + 'return Constraint.Skip' + _NL
 
+        res += _indent[:-1] + 'end' + _NL
         # declaration line
         res += self._assemble_declaration()
 
-        res += _indent[:-1] + 'end'
 
         return res
 
@@ -214,13 +214,15 @@ class EquationDefinition(BasicElement):
                             res += f'list({_PREFIX +_idx.upper()})[{leap_lag_val}:], '
                     else:
                         res += f'{_PREFIX +_idx.upper()}, '
-            res += f'rule={self.name})' + _NL
+            res += "()"
+            res += f')' + _NL
             return res
         else:
             if self.index_list:
                 for _idx in self.index_list:
                     res += f'{_PREFIX +_idx.upper()}, '
-            res += f'rule={self.name})' + _NL
+            res += "()"
+            res += ')' + _NL
             return res
 
 
@@ -259,15 +261,16 @@ class ModelDefinition(BasicElement):
 
         # no need to do anything
         if self.all_equation:
-            container.model_def_scripts[self.name] = f'm_{self.name} = m.clone()' + _NL
+            container.model_def_scripts[self.name] = f'm_{self.name} = copy(m)' + _NL
         else:
             m_name = f'm_{self.name}'
             # clone the original model
-            res = f'{m_name} = m.clone()' + _NL
+            res = f'{m_name} = copy(m)' + _NL
             # iterate through declared equations
             for eq in container.equation:
                 if eq not in self.equations:
-                    res += f"{m_name}.del_component('{eq}')" + _NL
+                    res += f"delete({m_name}, {eq})" + _NL
+                    res += f"unregister({m_name}, :{eq})" + _NL
             container.model_def_scripts[self.name] = res
 
         return ''
@@ -294,12 +297,11 @@ class SolveStatement(BasicElement):
         }
 
         # declare objective
-        # TODO: what if _obj_ is used
-        res += f"@objective(m_{self.name}, {_sense_dict[self.sense], {self.obj_var})" + _NL
+        res += f"@objective(m_{self.name}, {_sense_dict[self.sense]}, {self.obj_var})" + _NL
 
         # assign solver via model type
         if self.type.lower() in container.options:
-            res += f"opt = SolverFactory('{container.options[self.type.lower()]}')" + _NL
+            res += f"set_optimizer(m, {container.options[self.type.lower()]})" + _NL
         else:
             _default_solvers = {
                 'lp': 'Ipopt',
@@ -314,8 +316,8 @@ class SolveStatement(BasicElement):
                 # 'mcp', 'mpec', 'Stoch.'
             }
             solver = _default_solvers[self.type.lower()]
-            res += f"set_optimizer(m, () -> {solver}())" + _NL
-            self.required_packages.add(solver)
+            res += f"set_optimizer(m_{self.name}, () -> {solver}())" + _NL
+            container.required_packages.add(solver)
 
         # solve
         res += f"optimize!(m_{self.name})" + _NL
@@ -363,28 +365,28 @@ class Assignment(BasicElement):
     def _assemble_set_attribute(self, container, attr, _indent=''):
 
         _attribute_dict = {
-            'up': 'setub',
-            'lo': 'setlb',
+            'up': 'set_upper_bound',
+            'lo': 'set_lower_bound',
             'fx': 'fix',
-            'l': ''
+            'l': 'set_start_value'
         }
 
         res, _indent = self._assemble_loop_condition(container, _indent)
 
         # symbol
-        res += self.symbol.assemble(container, _indent,
+        symbol = self.symbol.assemble(container, _indent,
                                     at_begin=True, top_level=True)
 
         # set attribute
         # l: active level
-        if attr == 'l':
-            res += ' = '
-            res += self._assemble_expression(container, _indent) + _NL
-        else:
-            res += '.' + _attribute_dict[attr] + '('
-            # expression
-            res += self._assemble_expression(container, _indent)
-            res += ')' + _NL
+        # if attr == 'l':
+        #    res += f'{symbol} = '
+        #    res += self._assemble_expression(container, _indent) + _NL
+        # else:
+        res += _attribute_dict[attr] + f'({symbol}, '
+        # expression
+        res += self._assemble_expression(container, _indent)
+        res += ')' + _NL
 
         return res
 
@@ -503,12 +505,12 @@ class Definition(BasicElement):
         doc = self.description
 
         # make all parameters mutable to handle potential update later
-        res = _PREFIX + f"@variable(m, {symbol_name} == "
+        res = f"@variable(m, {symbol_name} == "
         if data:
             if isinstance(data, list):
                 res += str(data[0])
             else:
-                res += str(data})
+                res += str(data)
         res += ")" 
         if doc:
             res += f"# {doc} "
@@ -525,7 +527,7 @@ class Definition(BasicElement):
         if isinstance(data, list):
             data = {k: v for (k, v) in data}
 
-        res = _PREFIX + f"{symbol_name} = Param("
+        # res = _PREFIX + f"{symbol_name} = Param("
         res = f"@variable(m, {symbol_name}[i in "
 
         # add index
@@ -569,8 +571,8 @@ class Definition(BasicElement):
             elif domain == 'p':
                 res = f'set_lower_bound({symbol_name}, 0.0)'
             else:
-                res = 'unset_binary({symbol_name})'
-                res += 'delete_lower_bound({symbol_name})'
+                res = f'unset_binary({symbol_name})'
+                res += f'delete_lower_bound({symbol_name})'
             return res + _NL
         else:
 
@@ -579,7 +581,7 @@ class Definition(BasicElement):
             if isinstance(data, list):
                 data = {k: v for (k, v) in data}
 
-            res = "@variable(m, {symbol_name}, "
+            res = f"@variable(m, {symbol_name}, "
 
             _tmp_res = []
             # add index
@@ -597,9 +599,10 @@ class Definition(BasicElement):
             if data:
                 _tmp_res.append(f"start = {data}")
 
-            res += ", ".join(_tmp_res) + ")" + _NL
+            res += ", ".join(_tmp_res) + ")"
             if doc:
-                res += f"# {doc}"
+                res += f" # {doc}" 
+            res += _NL
 
             return res
 

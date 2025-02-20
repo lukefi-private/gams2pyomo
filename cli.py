@@ -11,7 +11,7 @@ def main():
     args = args.parse_args()
     fp = args.inputfile
     if args.outputfile is None:
-        args.outputfile = args.inputfile.replace(".gms", ".py")
+        args.outputfile = args.inputfile.replace(".gms", ".jl")
 
     gp = GAMSTranslator(fp)
     res = gp.translate()

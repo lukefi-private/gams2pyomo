@@ -96,7 +96,7 @@ class Display(BasicElement):
                     logger.warn(f"Not supported suffix type for display: '.{symbol.suffix}'")
                     continue
             else:
-                _res = "print(value(" symbol.assemble(container, _indent) + '))' + _NL
+                _res = "print(value(" + symbol.assemble(container, _indent) + '))' + _NL
 
             _tmp_res.append(_indent + _res)
 

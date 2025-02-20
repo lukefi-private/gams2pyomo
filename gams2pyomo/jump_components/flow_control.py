@@ -264,7 +264,7 @@ class BreakStatement(BasicElement):
 
         res += _indent + 'break' + _NL
         
-        res += _ident[:-1] + "end" _NL
+        res += _ident[:-1] + "end" + _NL
 
         return res
 
@@ -283,7 +283,7 @@ class ContinueStatement(BasicElement):
 
         res += _indent + 'continue' + _NL
 
-        res += _ident[:-1] + "end" _NL
+        res += _ident[:-1] + "end" + _NL
 
         return res
 

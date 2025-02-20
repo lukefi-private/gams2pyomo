@@ -124,8 +124,8 @@ class GAMSTranslator():
         logger.info("Done.")
         return res
 
-    def translate(self, translate_comment=True, codegen):
-        """Translate the GAMS code into Python-Pyomo code.
+    def translate(self, translate_comment=True):
+        """Translate the GAMS code into Julia-JuMP code.
 
         Args:
             parse_comment (bool, optional): _description_. Defaults to True.

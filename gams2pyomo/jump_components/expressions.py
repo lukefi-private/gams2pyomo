@@ -63,7 +63,7 @@ class FuncExpression(BasicElement):
                 res += str(o)
             else:
                 res += o.assemble(container, _indent)
-            res += ') ** 2'
+            res += ') ^ 2'
         elif self.operator.data == 'fn_ord':
             res = f'list({_PREFIX + o.name.upper()}).index({o.name}) + 1'
         elif self.operator.data == 'fn_errorf':
@@ -113,7 +113,7 @@ class BinaryExpression(BasicElement):
         'subtraction': '-',
         'multiplication': '*',
         'division': '/',
-        'exponentiation': '**',
+        'exponentiation': '^',
         'rel_le': '<=',
         'rel_ge': '>=',
         'rel_eq': '==',
