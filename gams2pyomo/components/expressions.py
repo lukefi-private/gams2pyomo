@@ -315,7 +315,7 @@ class ProdExpression(IndexedExpression, BasicElement):
             res = '- '
         else:
             res = ''
-
+        self.required_packages.add("math")
         res += 'math.prod('
 
         try:
@@ -336,7 +336,6 @@ class ProdExpression(IndexedExpression, BasicElement):
             else:
                 res += self.condition.assemble(container, _indent)
         res += ')'
-        container.required_packages.add("math") # needed for math.prod()
 
         return res
 

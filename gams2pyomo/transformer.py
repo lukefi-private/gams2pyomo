@@ -1,9 +1,9 @@
 import logging
 from typing import List
 from lark import Transformer, Tree, Token, v_args
-from .components import *
+from .jump_components import *
 from .util import sequence_set
-from .components.container import _ARITHMETIC_TYPES
+from .jump_components.container import _ARITHMETIC_TYPES
 
 logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
 logger = logging.getLogger('gams_translator.transformer')
@@ -427,6 +427,8 @@ class GAMSTransformer(Transformer):
             'product': ProdExpression,
             'set_maximum': SetMaxExpression,
             'set_minimum': SetMinExpression,
+            'conjunction': SetConjuctionExpression,
+            'disjunction': SetDisjuctionExpression,
         }
 
         if isinstance(children[0], Tree) and not isinstance(children[0], Symbol):

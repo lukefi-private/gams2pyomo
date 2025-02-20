@@ -300,7 +300,7 @@ class ProdExpression(IndexedExpression, BasicElement):
         else:
             res = ''
 
-        res += 'math.prod('
+        res += 'prod('
 
         try:
             res += self.exp.assemble(container, _indent)
@@ -320,7 +320,6 @@ class ProdExpression(IndexedExpression, BasicElement):
             else:
                 res += self.condition.assemble(container, _indent)
         res += ')'
-        container.required_packages.add("math") # needed for math.prod()
 
         return res
 
@@ -338,7 +337,7 @@ class SetMaxExpression(IndexedExpression, BasicElement):
         else:
             res = ''
 
-        res += 'max(['
+        res += 'maximum(['
 
         try:
             res += self.exp.assemble(container, _indent)
@@ -379,7 +378,7 @@ class SetMinExpression(IndexedExpression, BasicElement):
         else:
             res = ''
 
-        res += 'min(['
+        res += 'minimum(['
 
         try:
             res += self.exp.assemble(container, _indent)
@@ -405,3 +404,24 @@ class SetMinExpression(IndexedExpression, BasicElement):
         value_suffix = False
 
         return res
+
+class SetConjunctionExpression(IndexedExpression, BasicElement):
+
+    def assemble(self, container, _indent='', **kwargs):
+
+        msg = "Error while assembling Set-Conjuction expression (sand): not supported"
+        logger.error(msg)
+        raise e
+
+        return ""
+
+
+class SetDisjunctionExpression(IndexedExpression, BasicElement):
+
+    def assemble(self, container, _indent='', **kwargs):
+
+        msg = "Error while assembling Set-Disjuction expression (sor): not supported"
+        logger.error(msg)
+        raise e
+
+        return ""

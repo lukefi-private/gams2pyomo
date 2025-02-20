@@ -6,7 +6,7 @@ _PREFIX = 'm.'
 _NL = '\n'
 
 logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
-logger = logging.getLogger('gams_translator.components')
+logger = logging.getLogger('gams_translator.julia_components')
 logger.setLevel(logging.WARNING)
 
 class BasicElement:
@@ -201,8 +201,7 @@ class EquationDefinition(BasicElement):
 
     def _assemble_declaration(self):
 
-        res = _PREFIX + self.name + ' = Constraint('
-        res = f"@constraint(model, {self.name}"
+        res = f"@constraint(m, {self.name}"
 
         global leap_lag_op, leap_lag_var, leap_lag_val
         if leap_lag_op:
@@ -303,18 +302,20 @@ class SolveStatement(BasicElement):
             res += f"opt = SolverFactory('{container.options[self.type.lower()]}')" + _NL
         else:
             _default_solvers = {
-                'lp': 'gurobi',
-                'mip': 'gurobi',
-                'nlp': 'ipopt',
-                'cns': 'ipopt',
-                'dnlp': 'ipopt',
-                'minlp': 'baron',
-                'qcp': 'ipopt',
-                'miqcp': 'gurobi',
-                'global': 'baron',
+                'lp': 'Ipopt',
+                'mip': 'HiGHS',
+                'nlp': 'Ipopt',
+                'cns': 'Ipopt',
+                'dnlp': 'Ipopt',
+                'minlp': 'Alpine',
+                'qcp': 'Ipopt',
+                'miqcp': 'Juniper',
+                'global': 'Alpine',
                 # 'mcp', 'mpec', 'Stoch.'
             }
-            res += f"set_optimizer(m, () -> {_default_solvers[self.type.lower()]}()')" + _NL
+            solver = _default_solvers[self.type.lower()]
+            res += f"set_optimizer(m, () -> {solver}())" + _NL
+            self.required_packages.add(solver)
 
         # solve
         res += f"optimize!(m_{self.name})" + _NL
@@ -408,7 +409,7 @@ class Assignment(BasicElement):
         # loop lines
         if build_loop:
             for (_i, _s) in _set_dict.items():
-                res += _indent + f'for {_i} in {_PREFIX + _s}:' + _NL
+                res += _indent + f'for {_i} in {_s}:' + _NL
                 _indent += '\t'
 
         # conditional lines
@@ -502,15 +503,17 @@ class Definition(BasicElement):
         doc = self.description
 
         # make all parameters mutable to handle potential update later
-        res = _PREFIX + f"{symbol_name} = Param(mutable=True"
+        res = _PREFIX + f"@variable(m, {symbol_name} == "
         if data:
             if isinstance(data, list):
-                res += f", initialize={data[0]}"
+                res += str(data[0])
             else:
-                res += f", initialize={data}"
+                res += str(data})
+        res += ")" 
         if doc:
-            res += f", doc='{doc}'"
-        res += ")" + _NL
+            res += f"# {doc} "
+
+        res += _NL
         return res
 
     def _assemble_parameter(self):
@@ -523,6 +526,7 @@ class Definition(BasicElement):
             data = {k: v for (k, v) in data}
 
         res = _PREFIX + f"{symbol_name} = Param("
+        res = f"@variable(m, {symbol_name}[i in "
 
         # add index
         if hasattr(self.symbol, 'index_list') and self.symbol.index_list:
@@ -535,22 +539,21 @@ class Definition(BasicElement):
                                 _tmp_list.append(k[i])
                         res += f"{_tmp_list}, "
                 else:
-                    res += _PREFIX + f"{_idx.upper()}, "
-
-        # make all parameters mutable to handle potential update later
-        res += "mutable=True"
+                    res += f"{_idx.upper()}"
+        res += f"] in Parameter(i)"
 
         # data
         if data:
             # when scalar is declared as parameter
             if len(data) == 1 and isinstance(data, list):
-                res += f", initialize={data[0]}"
+                res += f", start = {data[0]}"
             else:
-                res += f", initialize={data}"
+                res += f", start = {data}"
         # doc
+        res += ")" 
         if doc:
-            res += f", doc='{doc}'"
-        res += ")" + _NL
+            res += f"# {doc}"
+        res += _NL
         return res
 
     def _assemble_variable(self, domain, container):
@@ -561,14 +564,13 @@ class Definition(BasicElement):
 
         # before assembling, check if the declaration is to update domain
         if symbol_name in container.variable:
-            res = _PREFIX + symbol_name
-            res += '.domain = '
             if domain == 'b':
-                res += 'Binary'
+                res = f'set_binary({symbol_name})'
             elif domain == 'p':
-                res += 'NonNegativeReals'
+                res = f'set_lower_bound({symbol_name}, 0.0)'
             else:
-                res += 'Any'
+                res = 'unset_binary({symbol_name})'
+                res += 'delete_lower_bound({symbol_name})'
             return res + _NL
         else:
 
@@ -577,7 +579,7 @@ class Definition(BasicElement):
             if isinstance(data, list):
                 data = {k: v for (k, v) in data}
 
-            res = _PREFIX + f"{symbol_name} = Var("
+            res = "@variable(m, {symbol_name}, "
 
             _tmp_res = []
             # add index
@@ -586,18 +588,18 @@ class Definition(BasicElement):
                     _tmp_res.append(_PREFIX + f"{_idx.upper()}")
             # domain
             if domain == 'b':
-                _tmp_res.append("within=Binary")
+                _tmp_res.append("Bin")
             elif domain == 'p':
-                _tmp_res.append("within=NonNegativeReals")
+                _tmp_res.append("lower_bound = 0")
             else:
                 pass
 
             if data:
-                _tmp_res.append(f"initialize={data}")
-            if doc:
-                _tmp_res.append(f"doc='{doc}'")
+                _tmp_res.append(f"start = {data}")
 
             res += ", ".join(_tmp_res) + ")" + _NL
+            if doc:
+                res += f"# {doc}"
 
             return res
 
