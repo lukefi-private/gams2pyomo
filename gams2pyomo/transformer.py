@@ -429,8 +429,8 @@ class GAMSTransformer(Transformer):
             'product': ProdExpression,
             'set_maximum': SetMaxExpression,
             'set_minimum': SetMinExpression,
-            'conjunction': SetConjuctionExpression,
-            'disjunction': SetDisjuctionExpression,
+            'conjunction': SetConjunctionExpression,
+            'disjunction': SetDisjunctionExpression,
         }
 
         if isinstance(children[0], Tree) and not isinstance(children[0], Symbol):

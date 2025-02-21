@@ -2,7 +2,7 @@ from .util import find_alias
 import logging, logging.config
 from abc import abstractclassmethod
 
-_PREFIX = 'm.'
+_PREFIX = 'm_'
 _NL = '\n'
 
 logging.config.fileConfig('gams2pyomo/config.ini', disable_existing_loggers=False)
@@ -61,7 +61,7 @@ class Symbol(BasicElement):
         else:
             res += self.name
 
-        if self.index_list:
+        if False and self.index_list:
             res += '['
             _idx = self.index_list[0]
             if isinstance(_idx, SpecialIndex):
@@ -137,11 +137,10 @@ class EquationDefinition(BasicElement):
 
         # function definition
         # def line
-        res = f'function {self.name}('
+        res = f'@constraint(m, {self.name}, '
         if index_list:
             for _idx in index_list:
                 res += f', {_idx}'
-        res += ')' + _NL
         # increase indent
         _indent += '\t'
 
@@ -157,7 +156,7 @@ class EquationDefinition(BasicElement):
             _indent += '\t'
 
         # return line
-        res += _indent + 'return '
+        # res += _indent + 'return '
         # LHS
         if isinstance(self.lhs, (int, float)):
             res += str(self.lhs)
@@ -180,7 +179,7 @@ class EquationDefinition(BasicElement):
                 msg = "Error while trying to assemble the RHS of the equation."
                 logger.error(msg)
                 raise e
-        res += _NL
+        # res += _NL
 
         # add else -> return skip
         if self.condition:
@@ -192,10 +191,11 @@ class EquationDefinition(BasicElement):
             _indent += '\t'
             res += _indent + 'return Constraint.Skip' + _NL
 
-        res += _indent[:-1] + 'end' + _NL
+        # res += _indent[:-1] + 'end' + _NL
         # declaration line
-        res += self._assemble_declaration()
+        #res += self._assemble_declaration()
 
+        res += ')' + _NL
 
         return res
 
@@ -209,7 +209,7 @@ class EquationDefinition(BasicElement):
                 for _idx in self.index_list:
                     if _idx == leap_lag_var:
                         if leap_lag_op == 'leap':
-                            res += f'list({_PREFIX +_idx.upper()})[:-{leap_lag_val}], '
+                            res += f'list({_PREFIX + _idx.upper()})[:-{leap_lag_val}], '
                         else:  # 'lag'
                             res += f'list({_PREFIX +_idx.upper()})[{leap_lag_val}:], '
                     else:
@@ -269,7 +269,7 @@ class ModelDefinition(BasicElement):
             # iterate through declared equations
             for eq in container.equation:
                 if eq not in self.equations:
-                    res += f"delete({m_name}, {eq})" + _NL
+                    res += f"delete({m_name}, {m_name}[:{eq}])" + _NL
                     res += f"unregister({m_name}, :{eq})" + _NL
             container.model_def_scripts[self.name] = res
 
@@ -297,7 +297,7 @@ class SolveStatement(BasicElement):
         }
 
         # declare objective
-        res += f"@objective(m_{self.name}, {_sense_dict[self.sense]}, {self.obj_var})" + _NL
+        res += f"@objective(m_{self.name}, {_sense_dict[self.sense]}, m_{self.name}[:{self.obj_var}])" + _NL
 
         # assign solver via model type
         if self.type.lower() in container.options:
@@ -316,7 +316,7 @@ class SolveStatement(BasicElement):
                 # 'mcp', 'mpec', 'Stoch.'
             }
             solver = _default_solvers[self.type.lower()]
-            res += f"set_optimizer(m_{self.name}, () -> {solver}())" + _NL
+            res += f"set_optimizer(m_{self.name}, () -> {solver}.Optimizer())" + _NL
             container.required_packages.add(solver)
 
         # solve
@@ -409,10 +409,10 @@ class Assignment(BasicElement):
         res = ''
 
         # loop lines
-        if build_loop:
-            for (_i, _s) in _set_dict.items():
-                res += _indent + f'for {_i} in {_s}:' + _NL
-                _indent += '\t'
+        # if build_loop:
+        #     for (_i, _s) in _set_dict.items():
+                # res += _indent + f'for {_i} in {_s}:' + _NL
+                # _indent += '\t'
 
         # conditional lines
         if self.condition:
@@ -490,11 +490,11 @@ class Definition(BasicElement):
         doc = self.description
         data = self.data
 
-        res = _PREFIX + f"{symbol_name} = Set(initialize={data}, ordered=True"
+        data = ', '.join([f'"{set_member}"' for set_member in data])
+
+        res = f"m_{symbol_name} = [{data}]" # , ordered=True"
         if doc:
-            res += f", doc='{doc}')"
-        else:
-            res += ')'
+            res += f" # {doc}"
         res += _NL
 
         return res
@@ -505,15 +505,15 @@ class Definition(BasicElement):
         doc = self.description
 
         # make all parameters mutable to handle potential update later
-        res = f"@variable(m, {symbol_name} == "
+        res = f"{symbol_name} = "
         if data:
             if isinstance(data, list):
                 res += str(data[0])
             else:
                 res += str(data)
-        res += ")" 
+        # res += ")" 
         if doc:
-            res += f"# {doc} "
+            res += f" # {doc} "
 
         res += _NL
         return res
@@ -524,38 +524,40 @@ class Definition(BasicElement):
         doc = self.description
 
         # update the data structure
-        if isinstance(data, list):
-            data = {k: v for (k, v) in data}
+        # if isinstance(data, list):
+        #     data = {k: v for (k, v) in data}
 
         # res = _PREFIX + f"{symbol_name} = Param("
-        res = f"@variable(m, {symbol_name}[i in "
-
-        # add index
-        if hasattr(self.symbol, 'index_list') and self.symbol.index_list:
-            for i, _idx in enumerate(self.symbol.index_list):
-                if _idx == '*':
-                    if data:
-                        _tmp_list = []
-                        for k in data:
-                            if k[i] not in _tmp_list:
-                                _tmp_list.append(k[i])
-                        res += f"{_tmp_list}, "
-                else:
-                    res += f"{_idx.upper()}"
-        res += f"] in Parameter(i)"
-
-        # data
         if data:
-            # when scalar is declared as parameter
-            if len(data) == 1 and isinstance(data, list):
-                res += f", start = {data[0]}"
-            else:
-                res += f", start = {data}"
-        # doc
-        res += ")" 
-        if doc:
-            res += f"# {doc}"
-        res += _NL
+            res = f"m_{symbol_name} = Dict({data})" + _NL
+        else:
+            res = ""
+            # add index
+            if hasattr(self.symbol, 'index_list') and self.symbol.index_list:
+                for i, _idx in enumerate(self.symbol.index_list):
+                    if _idx == '*':
+                        if data:
+                            _tmp_list = []
+                            for k in data:
+                                if k[i] not in _tmp_list:
+                                    _tmp_list.append(k[i])
+                            res += f"[i in {_tmp_list}] "
+                    else:
+                        res += f"[i in {_idx.upper()}]"
+            # res += f" in Parameter(i)"
+
+            # data
+            if data:
+                # when scalar is declared as parameter
+                if len(data) == 1 and isinstance(data, list):
+                    res += f", start = {data[0]}"
+                else:
+                    res += f", start = {data}"
+            # doc
+            res += ")" 
+            if doc:
+                res += f" # {doc}"
+            res += _NL
         return res
 
     def _assemble_variable(self, domain, container):
