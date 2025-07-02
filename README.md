@@ -1,6 +1,14 @@
 ![logo](logo.png)
 
-# gams2pyomo: A Translator for Optimization Models
+# gams2jump: A Translator for Optimization Models
+
+gams2jump is a project aiming to translate GAMS files to Julia/JuMP code.
+The project is on hold indefinitely. The julia codegeneration is a
+work-in-progress and was never finished. The parser and the lark grammar is 
+known to be incomplete and contains mistakes. Below is the README.md file for
+gams2pyomo which the project is a fork of.
+
+# gams2pyomo
 
 `gams2pyomo` is a utility tool aiming at translating GAMS files
 automatically into Python/Pyomo code while preserving model structure.
